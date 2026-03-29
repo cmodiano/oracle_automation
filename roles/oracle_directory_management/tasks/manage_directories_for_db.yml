@@ -1,0 +1,40 @@
+---
+# Manage directories for a single database.
+
+# --- CDB-level directories ---
+- name: "Manage CDB directory {{ _cdb_dir.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_directory:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    directory_name: "{{ _cdb_dir.key }}"
+    directory_path: "{{ _cdb_dir.value.path }}"
+    state: "{{ _cdb_dir.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.directories | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _cdb_dir
+    label: "{{ _db.db_name }}/{{ _cdb_dir.key }}"
+  when: _db.directories is defined
+
+# --- PDB-level directories ---
+- name: "Manage PDB directories for {{ _dir_pdb.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_directory:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _dir_pdb.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    directory_name: "{{ _pdb_dir.key }}"
+    directory_path: "{{ _pdb_dir.value.path }}"
+    state: "{{ _pdb_dir.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _dir_pdb
+    label: "{{ _db.db_name }}/{{ _dir_pdb.key }}"
+  when:
+    - _dir_pdb.value.directories is defined
+    - _dir_pdb.value.state | default('open') != 'absent'
+  # Note: inner loop over directories needs include_tasks pattern
+  # TODO: Extract inner loop to separate file for PDB-level directories

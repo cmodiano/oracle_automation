@@ -1,0 +1,28 @@
+---
+# oracle_dataguard - Configure Data Guard, handle switchover and failover.
+#
+# Uses oracle_sqldba with sqltype: dgmgrl for DGMGRL commands,
+# oracle_parameter for DG-related parameters, and oracle_redo for
+# standby redo logs.
+#
+# Extra vars:
+#   dg_operation: setup | switchover | failover (default: setup)
+#   switchover_target: db_unique_name of switchover target
+#   failover_target: db_unique_name of failover target
+#
+# Requires: oracle_databases fact from catalog_loader
+# Uses: ibre5041.ansible_oracle_modules.oracle_parameter
+#       ibre5041.ansible_oracle_modules.oracle_redo
+#       ibre5041.ansible_oracle_modules.oracle_sqldba
+#       ibre5041.ansible_oracle_modules.oracle_facts
+
+- name: Data Guard management for each database
+  ansible.builtin.include_tasks: "dg_{{ dg_operation | default('setup') }}.yml"
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db.dataguard is defined
+  tags: [dataguard]

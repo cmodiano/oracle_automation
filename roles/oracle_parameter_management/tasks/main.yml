@@ -1,0 +1,22 @@
+---
+# oracle_parameter_management - 3-layer merge and apply init parameters.
+#
+# Merge order:
+#   1. oracle_baseline_parameters (security/audit - from inventory group_vars)
+#   2. oracle_env_parameters (env-specific - from inventory group_vars)
+#   3. db.init_parameters (database-specific - from catalog)
+#
+# Baseline parameters always win (applied last, they cannot be overridden by catalog).
+#
+# Requires: oracle_databases fact from catalog_loader
+# Uses: ibre5041.ansible_oracle_modules.oracle_parameter
+
+- name: Manage parameters for each database
+  ansible.builtin.include_tasks: manage_params_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+  tags: [parameters]

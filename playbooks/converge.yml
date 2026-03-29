@@ -1,0 +1,61 @@
+---
+- name: Oracle Database Converge
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging', 'prod']
+        fail_msg: "oracle_environment must be set to dev, staging, or prod"
+      tags: [always]
+
+  roles:
+    - role: catalog_loader
+      tags: [always]
+
+    - role: oracle_database
+      tags: [database]
+
+    - role: oracle_pdb_management
+      tags: [database, pdbs]
+
+    - role: oracle_parameter_management
+      tags: [parameters]
+
+    - role: oracle_tablespace_management
+      tags: [tablespaces]
+
+    - role: oracle_schema_management
+      tags: [schemas]
+
+    - role: oracle_directory_management
+      tags: [directories]
+
+    - role: oracle_service_management
+      tags: [services]
+
+    - role: oracle_scheduler_management
+      tags: [scheduler]
+
+  post_tasks:
+    - name: Gather final database facts
+      ibre5041.ansible_oracle_modules.oracle_facts:
+        mode: sysdba
+        hostname: localhost
+        service_name: "{{ item.db_name }}"
+        oracle_home: "{{ item._oracle_home_path }}"
+        database: true
+        instance: true
+        patch_level: true
+      loop: "{{ oracle_databases }}"
+      loop_control:
+        label: "{{ item.db_name }}"
+      register: _converge_facts
+      become_user: "{{ oracle_os_user }}"
+      tags: [always, facts]

@@ -1,0 +1,21 @@
+---
+- name: Apply Oracle Patch
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  serial: 1                          # Rolling: one node at a time for RAC
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_home_name is defined
+          - patch_id is defined
+          - patch_base is defined
+
+  roles:
+    - role: catalog_loader
+    - role: oracle_patching

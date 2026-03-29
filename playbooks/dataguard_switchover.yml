@@ -1,0 +1,21 @@
+---
+- name: Data Guard Switchover
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - target_db is defined
+          - switchover_target is defined
+
+  roles:
+    - role: catalog_loader
+    - role: oracle_dataguard
+      vars:
+        dg_operation: switchover

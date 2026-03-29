@@ -1,0 +1,18 @@
+---
+- name: Manage Oracle PDBs
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging', 'prod']
+
+  roles:
+    - role: catalog_loader
+    - role: oracle_pdb_management

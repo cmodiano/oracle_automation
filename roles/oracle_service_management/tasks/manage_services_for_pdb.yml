@@ -1,0 +1,46 @@
+---
+# Manage services for a single PDB.
+# Variables: _db (database), _svc_pdb (PDB dict item)
+
+# --- RAC / Restart path ---
+- name: "Manage CRS service {{ _crs_svc.key }} for {{ _db.db_name }}/{{ _svc_pdb.key }}"
+  ibre5041.ansible_oracle_modules.oracle_crs_service:
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _crs_svc.key }}"
+    db: "{{ _db.db_unique_name }}"
+    pdb: "{{ _svc_pdb.key }}"
+    state: "{{ _crs_svc.value.state | default('started') }}"
+    role: "{{ _crs_svc.value.role | default(omit) }}"
+    policy: "{{ _crs_svc.value.policy | default(omit) }}"
+    failovertype: "{{ _crs_svc.value.failovertype | default(omit) }}"
+    failover_restore: "{{ _crs_svc.value.failover_restore | default(omit) }}"
+    failoverretry: "{{ _crs_svc.value.failoverretry | default(omit) }}"
+    failoverdelay: "{{ _crs_svc.value.failoverdelay | default(omit) }}"
+    preferred: "{{ _crs_svc.value.preferred_instances | default(omit) }}"
+    available: "{{ _crs_svc.value.available_instances | default(omit) }}"
+    clb_goal: "{{ _crs_svc.value.clb_goal | default(omit) }}"
+    rlb_goal: "{{ _crs_svc.value.rlb_goal | default(omit) }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _svc_pdb.value.services | dict2items }}"
+  loop_control:
+    loop_var: _crs_svc
+    label: "{{ _svc_pdb.key }}/{{ _crs_svc.key }}"
+  when: _db._topology in ['rac', 'restart']
+
+# --- Standalone path ---
+- name: "Manage service {{ _si_svc.key }} for {{ _db.db_name }}/{{ _svc_pdb.key }}"
+  ibre5041.ansible_oracle_modules.oracle_services:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _si_svc.key }}"
+    database_name: "{{ _db.db_name }}"
+    pdb: "{{ _svc_pdb.key }}"
+    state: "{{ _si_svc.value.state | default('started') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _svc_pdb.value.services | dict2items }}"
+  loop_control:
+    loop_var: _si_svc
+    label: "{{ _svc_pdb.key }}/{{ _si_svc.key }}"
+  when: _db._topology == 'standalone'

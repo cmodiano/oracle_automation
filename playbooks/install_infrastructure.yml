@@ -1,0 +1,33 @@
+---
+- name: Install Oracle Infrastructure
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging', 'prod']
+
+  # This playbook wraps the collection's existing infrastructure roles.
+  # The specific roles depend on oracle_install_type (from inventory group_vars).
+  roles:
+    # OS preparation - select based on platform
+    # - role: ibre5041.ansible_oracle_modules.base_oracle_vmware
+    # - role: ibre5041.ansible_oracle_modules.base_oracle_ec2
+
+    # Grid Infrastructure - select based on install type
+    # For RAC:
+    # - role: ibre5041.ansible_oracle_modules.oracle_crs_19c
+    # For standalone/restart:
+    # - role: ibre5041.ansible_oracle_modules.oracle_restart_19c
+
+    # RDBMS binaries
+    - role: ibre5041.ansible_oracle_modules.oracle_db_home
+
+    # Post-installation
+    - role: ibre5041.ansible_oracle_modules.oracle_post_install

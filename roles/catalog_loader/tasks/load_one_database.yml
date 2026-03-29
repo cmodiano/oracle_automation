@@ -1,0 +1,52 @@
+---
+# Load a single database catalog file, merge with overlay, and enrich.
+# Called from main.yml with loop_var: _db_file_path
+
+- name: "Load base catalog: {{ _db_file_path | basename }}"
+  ansible.builtin.include_vars:
+    file: "{{ _db_file_path }}"
+    name: _base_config
+
+- name: "Check for overlay: {{ _db_file_path | basename }}"
+  ansible.builtin.stat:
+    path: "{{ oracle_catalog_dir }}/overlays/{{ oracle_environment }}/{{ _db_file_path | basename }}"
+  register: _overlay_stat
+  delegate_to: localhost
+  become: false
+
+- name: "Load overlay: {{ _db_file_path | basename }}"
+  ansible.builtin.include_vars:
+    file: "{{ oracle_catalog_dir }}/overlays/{{ oracle_environment }}/{{ _db_file_path | basename }}"
+    name: _overlay_config
+  when: _overlay_stat.stat.exists
+
+- name: "Set empty overlay when none exists: {{ _db_file_path | basename }}"
+  ansible.builtin.set_fact:
+    _overlay_config: {}
+  when: not _overlay_stat.stat.exists
+
+- name: "Merge base + overlay: {{ _base_config.db_name | default(_db_file_path | basename) }}"
+  ansible.builtin.set_fact:
+    _merged_db: >-
+      {{ _base_config
+         | combine(_overlay_config, recursive=True)
+      }}
+
+- name: "Enrich catalog: {{ _merged_db.db_name }}"
+  ansible.builtin.set_fact:
+    _enriched_db: >-
+      {{ _merged_db | combine({
+           '_oracle_home_path': _merged_db.oracle_home | resolve_oracle_home(oracle_homes),
+           '_first_node': _merged_db.host_mapping[oracle_environment].first_node
+                          | default(_merged_db.host_mapping[oracle_environment].hosts[0]),
+           '_topology': _merged_db.host_mapping[oracle_environment].topology
+                        | default('standalone'),
+           '_db_role': _merged_db.dataguard.role | default('primary'),
+           '_is_first_node': (inventory_hostname == (_merged_db.host_mapping[oracle_environment].first_node
+                              | default(_merged_db.host_mapping[oracle_environment].hosts[0]))),
+         })
+      }}
+
+- name: "Append to accumulator: {{ _enriched_db.db_name }}"
+  ansible.builtin.set_fact:
+    _all_databases: "{{ _all_databases + [_enriched_db] }}"

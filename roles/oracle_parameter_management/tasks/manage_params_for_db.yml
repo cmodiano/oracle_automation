@@ -1,0 +1,48 @@
+---
+# Apply merged parameters for a single database (_db from outer loop).
+
+- name: "Build merged parameter set for {{ _db.db_name }}"
+  ansible.builtin.set_fact:
+    _merged_params: >-
+      {{ (_db.init_parameters | default({}))
+         | combine(oracle_env_parameters | default({}), recursive=True)
+         | combine(oracle_baseline_parameters | default({}), recursive=True)
+      }}
+
+- name: "Apply parameter {{ _param.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_parameter:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _param.key }}"
+    value: "{{ _param.value }}"
+    scope: both
+    sid: "{{ '*' if _db._topology == 'rac' else omit }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _merged_params | dict2items }}"
+  loop_control:
+    loop_var: _param
+    label: "{{ _db.db_name }}: {{ _param.key }}={{ _param.value }}"
+  register: _param_result
+  # Static parameters will fail with scope=both; retry with scope=spfile
+  ignore_errors: true
+
+- name: "Apply static parameter {{ _param_retry.item._param.key }} with spfile scope on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_parameter:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _param_retry.item._param.key }}"
+    value: "{{ _param_retry.item._param.value }}"
+    scope: spfile
+    sid: "{{ '*' if _db._topology == 'rac' else omit }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _param_result.results | default([]) | selectattr('failed', 'defined') | selectattr('failed') | list }}"
+  loop_control:
+    loop_var: _param_retry
+    label: "{{ _db.db_name }}: {{ _param_retry.item._param.key }} (spfile)"
+  when: _param_result.results is defined

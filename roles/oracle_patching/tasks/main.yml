@@ -1,0 +1,62 @@
+---
+# oracle_patching - Apply Oracle patches (OPatch) and run datapatch.
+#
+# Extra vars (NOT from catalog):
+#   oracle_home_name: key into oracle_homes dict
+#   patch_id: OPatch patch number
+#   patch_base: path to unzipped patch directory
+#   opatchauto: true/false (GI patches use opatchauto)
+#   rolling: true/false
+#
+# Requires: oracle_homes from inventory group_vars
+# Uses: ibre5041.ansible_oracle_modules.oracle_opatch
+#       ibre5041.ansible_oracle_modules.oracle_datapatch
+#       ibre5041.ansible_oracle_modules.oracle_facts
+
+- name: Validate patching inputs
+  ansible.builtin.assert:
+    that:
+      - oracle_home_name is defined
+      - patch_id is defined
+      - patch_base is defined
+    fail_msg: "Patching requires oracle_home_name, patch_id, and patch_base extra_vars"
+  tags: [patching]
+
+- name: Resolve oracle_home path
+  ansible.builtin.set_fact:
+    _patch_oracle_home: "{{ oracle_home_name | resolve_oracle_home(oracle_homes) }}"
+  tags: [patching]
+
+- name: Run conflict check
+  ibre5041.ansible_oracle_modules.oracle_opatch:
+    oracle_home: "{{ _patch_oracle_home }}"
+    patch_id: "{{ patch_id }}"
+    patch_base: "{{ patch_base }}"
+    conflict_check: true
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  tags: [patching]
+
+- name: Apply patch
+  ibre5041.ansible_oracle_modules.oracle_opatch:
+    oracle_home: "{{ _patch_oracle_home }}"
+    patch_id: "{{ patch_id }}"
+    patch_base: "{{ patch_base }}"
+    opatchauto: "{{ opatchauto | default(false) }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  tags: [patching]
+
+- name: Run datapatch for databases in this oracle_home
+  ibre5041.ansible_oracle_modules.oracle_datapatch:
+    oracle_home: "{{ _patch_oracle_home }}"
+    db_name: "{{ db.db_name }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: >-
+    {{ oracle_databases | default([])
+       | selectattr('_oracle_home_path', 'equalto', _patch_oracle_home) | list }}
+  loop_control:
+    loop_var: db
+    label: "{{ db.db_name }}"
+  when: db._is_first_node
+  tags: [patching]

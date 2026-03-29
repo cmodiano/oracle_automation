@@ -1,0 +1,17 @@
+---
+# Manage scheduler objects for each PDB in a database.
+# TODO: Implement inner loops for job_classes, job_schedules, job_windows, jobs
+# per PDB following the dependency order defined in main.yml.
+
+- name: "Process scheduler for PDB {{ _sched_pdb.key }} in {{ _db.db_name }}"
+  ansible.builtin.debug:
+    msg: >-
+      Scheduler management for {{ _db.db_name }}/{{ _sched_pdb.key }}:
+      {{ _sched_pdb.value.scheduler | default({}) | to_nice_yaml }}
+  loop: "{{ _db.pdbs | dict2items }}"
+  loop_control:
+    loop_var: _sched_pdb
+    label: "{{ _db.db_name }}/{{ _sched_pdb.key }}"
+  when:
+    - _sched_pdb.value.scheduler is defined
+    - _sched_pdb.value.state | default('open') != 'absent'

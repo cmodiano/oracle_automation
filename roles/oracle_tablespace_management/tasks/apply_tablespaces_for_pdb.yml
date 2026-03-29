@@ -1,0 +1,23 @@
+---
+# Apply tablespaces for a single PDB.
+# Variables: _db (database), _pdb_ts (PDB dict item)
+
+- name: "Create/update tablespace {{ _ts_item.key }} in {{ _db.db_name }}/{{ _pdb_ts.key }}"
+  ibre5041.ansible_oracle_modules.oracle_tablespace:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_ts.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    tablespace: "{{ _ts_item.key }}"
+    size: "{{ _ts_item.value.size | default(omit) }}"
+    bigfile: "{{ _ts_item.value.bigfile | default(omit) }}"
+    autoextend: "{{ _ts_item.value.autoextend | default(omit) }}"
+    next: "{{ _ts_item.value.nextsize | default(omit) }}"
+    maxsize: "{{ _ts_item.value.maxsize | default(omit) }}"
+    content: "{{ _ts_item.value.content | default('permanent') }}"
+    state: "{{ _ts_item.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _pdb_ts.value.tablespaces | dict2items }}"
+  loop_control:
+    loop_var: _ts_item
+    label: "{{ _pdb_ts.key }}/{{ _ts_item.key }}"

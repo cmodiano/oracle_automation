@@ -1,0 +1,82 @@
+---
+# catalog_loader - Load, merge, filter, and enrich database catalog files.
+#
+# Inputs (from inventory group_vars):
+#   - oracle_environment: dev | staging | prod
+#   - oracle_homes: dict of oracle home definitions
+#
+# Inputs (from role defaults / extra_vars):
+#   - oracle_catalog_dir: path to databases/ directory
+#   - target_db: optional db_name filter
+#   - target_pdb: optional PDB annotation
+#
+# Output:
+#   - oracle_databases: list of merged, enriched catalog dicts for this host
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - oracle_environment is defined
+      - oracle_environment in ['dev', 'staging', 'prod']
+      - oracle_homes is defined
+    fail_msg: >-
+      catalog_loader requires oracle_environment (dev|staging|prod)
+      and oracle_homes dict from inventory group_vars.
+  tags: [always]
+
+- name: Find database catalog files
+  ansible.builtin.find:
+    paths: "{{ oracle_catalog_dir }}"
+    patterns: "*.yml,*.yaml"
+    recurse: false
+  register: _catalog_files
+  delegate_to: localhost
+  become: false
+
+- name: Initialize database accumulator
+  ansible.builtin.set_fact:
+    _all_databases: []
+
+- name: Load and merge each database catalog
+  ansible.builtin.include_tasks: load_one_database.yml
+  loop: "{{ _catalog_files.files | map(attribute='path') | sort }}"
+  loop_control:
+    loop_var: _db_file_path
+
+- name: Filter databases for this host
+  ansible.builtin.set_fact:
+    _host_databases: >-
+      {{ _all_databases
+         | catalog_for_host(inventory_hostname, oracle_environment)
+      }}
+
+- name: Filter by target_db if specified
+  ansible.builtin.set_fact:
+    _host_databases: >-
+      {{ _host_databases | selectattr('db_name', 'equalto', target_db) | list }}
+  when: target_db | length > 0
+
+- name: Annotate target_pdb if specified
+  ansible.builtin.set_fact:
+    _host_databases: >-
+      {{ _host_databases | map('combine', {'_target_pdb': target_pdb}) | list }}
+  when: target_pdb | length > 0
+
+- name: Set oracle_databases fact
+  ansible.builtin.set_fact:
+    oracle_databases: "{{ _host_databases }}"
+
+- name: Report loaded databases
+  ansible.builtin.debug:
+    msg: >-
+      Loaded {{ oracle_databases | length }} database(s) for host {{ inventory_hostname }}
+      in environment {{ oracle_environment }}:
+      {{ oracle_databases | map(attribute='db_name') | join(', ') }}
+  when: oracle_databases | length > 0
+
+- name: Warn if no databases found for this host
+  ansible.builtin.debug:
+    msg: >-
+      No databases mapped to host {{ inventory_hostname }}
+      in environment {{ oracle_environment }}.
+  when: oracle_databases | length == 0

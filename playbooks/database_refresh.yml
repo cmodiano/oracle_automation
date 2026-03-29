@@ -1,0 +1,30 @@
+---
+- name: Database Environment Refresh
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging']
+          - target_db is defined
+        fail_msg: >-
+          Refresh requires oracle_environment (dev or staging only),
+          and target_db. Production refresh is not allowed.
+
+  roles:
+    - role: catalog_loader
+
+  # TODO: Implement refresh workflow:
+  # 1. Close target PDBs
+  # 2. Drop target PDBs
+  # 3. Clone PDBs from source (remote clone or from backup)
+  # 4. Open cloned PDBs
+  # 5. Apply target-environment parameters
+  # 6. Apply target-environment schemas
+  # 7. Validate

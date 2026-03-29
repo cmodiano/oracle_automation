@@ -1,0 +1,26 @@
+---
+# oracle_scheduler_management - Manage DBMS_SCHEDULER objects per PDB.
+#
+# Executed in dependency order:
+#   1. Job classes (resource_consumer_group, logging_level)
+#   2. Job schedules (repeat_interval)
+#   3. Job windows (resource_plan, schedule_name, duration)
+#   4. Jobs (job_type, job_action, schedule/repeat, job_class, enabled)
+#
+# Requires: oracle_databases fact from catalog_loader
+# Uses: ibre5041.ansible_oracle_modules.oracle_jobclass
+#       ibre5041.ansible_oracle_modules.oracle_jobschedule
+#       ibre5041.ansible_oracle_modules.oracle_jobwindow
+#       ibre5041.ansible_oracle_modules.oracle_job
+
+- name: Manage scheduler objects for each database
+  ansible.builtin.include_tasks: manage_scheduler_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db._db_role != 'physical_standby'
+    - _db.pdbs is defined
+  tags: [scheduler]

@@ -1,0 +1,12 @@
+---
+# Manage services for each PDB in a database.
+
+- name: "Manage services for PDB {{ _svc_pdb.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: manage_services_for_pdb.yml
+  loop: "{{ _db.pdbs | dict2items }}"
+  loop_control:
+    loop_var: _svc_pdb
+    label: "{{ _db.db_name }}/{{ _svc_pdb.key }}"
+  when:
+    - _svc_pdb.value.services is defined
+    - _svc_pdb.value.state | default('open') != 'absent'

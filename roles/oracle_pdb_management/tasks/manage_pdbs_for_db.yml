@@ -1,0 +1,34 @@
+---
+# Manage PDBs for a single database (_db from outer loop).
+#
+# PDB state mapping:
+#   catalog "open"      -> module "read_write"
+#   catalog "closed"    -> module "closed"
+#   catalog "read_only" -> module "read_only"
+#   catalog "absent"    -> module "absent"
+
+- name: "Manage PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_pdb:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _pdb_item.key }}"
+    state: "{{ _pdb_state_map[_pdb_item.value.state | default('open')] }}"
+    pdb_admin_username: "{{ _pdb_item.value.pdb_admin_username | default('pdb_admin') }}"
+    pdb_admin_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/' ~ _db.db_name ~ '/' ~ _pdb_item.key ~ '/pdb_admin',
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    datafile_dest: "{{ _pdb_item.value.datafile_dest | default(_db.datafile_dest | default(omit)) }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.pdbs | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  vars:
+    _pdb_state_map:
+      open: read_write
+      closed: closed
+      read_only: read_only
+      absent: absent

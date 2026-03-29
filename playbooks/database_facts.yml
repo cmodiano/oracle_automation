@@ -1,0 +1,41 @@
+---
+- name: Gather Oracle Database Facts
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging', 'prod']
+
+  roles:
+    - role: catalog_loader
+
+  tasks:
+    - name: Gather database facts
+      ibre5041.ansible_oracle_modules.oracle_facts:
+        mode: sysdba
+        hostname: localhost
+        service_name: "{{ db.db_name }}"
+        oracle_home: "{{ db._oracle_home_path }}"
+        database: true
+        instance: true
+        patch_level: true
+        tablespaces: true
+        pdbs: true
+        parameters: true
+        users: true
+      loop: "{{ oracle_databases }}"
+      loop_control:
+        loop_var: db
+        label: "{{ db.db_name }}"
+      become_user: "{{ oracle_os_user }}"
+      register: _db_facts
+
+    - name: Display database summary
+      ansible.builtin.debug:
+        msg: "{{ _db_facts.results | map(attribute='ansible_facts') | list }}"

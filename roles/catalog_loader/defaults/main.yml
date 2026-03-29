@@ -1,0 +1,10 @@
+---
+# Path to the database catalog directory.
+# Default: databases/ at the project root (two levels up from this role).
+oracle_catalog_dir: "{{ role_path }}/../../databases"
+
+# Optional filters - set via extra_vars to limit scope.
+# target_db: restrict to a single database by db_name
+# target_pdb: annotate a specific PDB (does not filter databases)
+target_db: ""
+target_pdb: ""

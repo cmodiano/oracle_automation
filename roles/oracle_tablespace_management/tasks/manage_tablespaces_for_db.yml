@@ -1,0 +1,37 @@
+---
+# Manage tablespaces for each PDB in a database.
+
+- name: "Manage tablespaces for PDB {{ _pdb.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_tablespace:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    tablespace: "{{ _ts.key }}"
+    size: "{{ _ts.value.size | default(omit) }}"
+    bigfile: "{{ _ts.value.bigfile | default(omit) }}"
+    autoextend: "{{ _ts.value.autoextend | default(omit) }}"
+    next: "{{ _ts.value.nextsize | default(omit) }}"
+    maxsize: "{{ _ts.value.maxsize | default(omit) }}"
+    content: "{{ _ts.value.content | default('permanent') }}"
+    state: "{{ _ts.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.pdbs | dict2items }}"
+  loop_control:
+    loop_var: _pdb
+    label: "{{ _db.db_name }}/{{ _pdb.key }}"
+  when:
+    - _pdb.value.tablespaces is defined
+    - _pdb.value.state | default('open') != 'absent'
+  # Inner loop over tablespaces handled via include
+  register: _ts_outer
+
+- name: "Apply tablespaces for {{ _pdb_ts.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: apply_tablespaces_for_pdb.yml
+  loop: "{{ _db.pdbs | dict2items }}"
+  loop_control:
+    loop_var: _pdb_ts
+    label: "{{ _db.db_name }}/{{ _pdb_ts.key }}"
+  when:
+    - _pdb_ts.value.tablespaces is defined
+    - _pdb_ts.value.state | default('open') != 'absent'

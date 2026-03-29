@@ -1,0 +1,232 @@
+---
+# ============================================================
+# DATABASE CATALOG FILE - databases/EXAMPLE.yml
+# ============================================================
+# This is a reference catalog showing the full schema.
+# Copy this file, rename to <DB_NAME>.yml, and customize.
+#
+# All collections (PDBs, users, tablespaces, services, etc.)
+# use dicts keyed by name (not lists). This is required
+# because combine(recursive=True) merges dicts recursively
+# but replaces lists entirely.
+# ============================================================
+
+# --- Identity ---
+db_name: APPDB1                      # REQUIRED - Database name
+db_unique_name: APPDB1               # REQUIRED - DB_UNIQUE_NAME (for DG, can differ from db_name)
+sid_prefix: APPDB1                   # REQUIRED - SID or SID prefix (RAC appends instance number)
+oracle_home: db_19_21                # REQUIRED - Key into oracle_homes dict in inventory group_vars
+
+# --- Database type ---
+cdb: true                            # true = Container Database, false = non-CDB
+characterset: AL32UTF8               # Default: oracle_default_characterset
+national_characterset: AL16UTF16     # Default: oracle_default_national_characterset
+db_type: MULTIPURPOSE                # MULTIPURPOSE | DATA_WAREHOUSING | OLTP
+
+# --- Host mapping (per environment) ---
+# Maps this database to hosts in each environment.
+# Host names must match inventory_hostname from the AAP inventory.
+host_mapping:
+  prod:
+    hosts: [oraprd-node-1, oraprd-node-2]   # List of hostnames running this DB
+    topology: rac                             # rac | standalone
+    first_node: oraprd-node-1                 # RAC: node that runs DDL operations
+  staging:
+    hosts: [orastg-node-1]
+    topology: standalone
+  dev:
+    hosts: [oradev-node-1]
+    topology: standalone
+
+# --- Storage ---
+storage_type: ASM                    # ASM | FS
+datafile_dest: +DATA                 # ASM diskgroup or filesystem path
+recoveryfile_dest: +FRA              # ASM diskgroup or filesystem path
+default_tablespace_type: bigfile     # bigfile | smallfile
+
+# --- Database-level flags ---
+# Can be overridden by oracle_env_db_defaults (inventory group_vars)
+# and by overlays. Merge priority: catalog base < env defaults < overlay
+archivelog: true
+force_logging: true
+supplemental_logging: true
+flashback: true
+
+# --- Database options ---
+# Merged on top of oracle_db_options_default from inventory group_vars
+db_options:
+  JSERVER: true                      # Only specify options that differ from default
+
+# --- Init parameters ---
+# Merged: oracle_baseline_parameters + oracle_env_parameters + this dict
+# Baseline (security/audit) params cannot be overridden here
+init_parameters:
+  sga_target: 8G
+  sga_max_size: 8G
+  pga_aggregate_target: 2G
+  pga_aggregate_limit: 4G
+  memory_target: 0
+  memory_max_target: 0
+  open_cursors: 500
+  processes: 1500
+  db_files: 2000
+  db_create_file_dest: +DATA
+  db_recovery_file_dest: +FRA
+  db_recovery_file_dest_size: 200G
+
+# --- Redo log configuration ---
+redo:
+  groups_per_thread: 4               # Number of redo groups per thread (RAC: per instance)
+  size: 512M                         # Size per redo log member
+
+# --- CDB-level profiles ---
+# Keys reference oracle_standard_profiles from inventory group_vars
+# Values override specific attributes of the standard profile
+profiles:
+  APP_PROFILE:
+    PASSWORD_LIFE_TIME: "180"
+  SVC_PROFILE: {}                    # Use standard definition as-is
+  BATCH_PROFILE: {}
+
+# --- CDB-level directories ---
+directories:
+  DATA_PUMP_DIR:
+    path: /oracle/u01/admin/APPDB1/dpdump
+  AUDIT_DIR:
+    path: /oracle/u01/admin/APPDB1/audit
+
+# --- Data Guard (optional, remove if not using DG) ---
+dataguard:
+  role: primary                      # primary | physical_standby
+  protection_mode: MAXIMUM_AVAILABILITY
+  standby_targets:
+    - db_unique_name: APPDB1_DR
+      connect_identifier: "oradr-node-1:1521/APPDB1_DR"
+      apply_lag_threshold: "30 MINUTES"
+  log_archive_dest:
+    2:
+      service: APPDB1_DR
+      async: true
+      valid_for: "online_logfiles,primary_role"
+      db_unique_name: APPDB1_DR
+  standby_file_management: AUTO
+  fal_server: APPDB1_DR
+
+# --- PDB definitions ---
+pdbs:
+
+  APPPDB1:
+    state: open                      # open | closed | read_only | absent
+    pdb_admin_username: pdb_admin    # PDB local admin
+    datafile_dest: +DATA             # Override CDB-level datafile_dest if needed
+
+    tablespaces:
+      APP_DATA:
+        size: 50G
+        autoextend: true
+        nextsize: 1G
+        maxsize: 200G
+        bigfile: true
+        content: permanent           # permanent | temp | undo
+        state: present               # present | absent | online | offline | read_only
+      APP_INDEX:
+        size: 20G
+        autoextend: true
+        maxsize: 100G
+        bigfile: true
+        content: permanent
+
+    profiles:
+      APP_USER_PROFILE:
+        PASSWORD_LIFE_TIME: "90"
+        FAILED_LOGIN_ATTEMPTS: "3"
+        PASSWORD_LOCK_TIME: "0.0208"
+
+    roles:
+      APP_READONLY:
+        state: present
+      APP_READWRITE:
+        state: present
+      APP_ADMIN:
+        state: present
+
+    users:
+      APP_OWNER:
+        state: present
+        default_tablespace: APP_DATA
+        default_temp_tablespace: TEMP
+        profile: SVC_PROFILE
+        authentication_type: password    # password | external | global | none
+        locked: false
+        expired: false
+        grants:
+          roles: [CONNECT, RESOURCE, APP_ADMIN]
+          system_privileges:
+            - CREATE VIEW
+            - CREATE MATERIALIZED VIEW
+            - CREATE SYNONYM
+            - CREATE DATABASE LINK
+          object_privileges:
+            - "EXECUTE:SYS.DBMS_LOCK"
+            - "EXECUTE:SYS.DBMS_CRYPTO"
+          grant_mode: exact              # exact = revoke unlisted privileges; append = only add
+
+      APP_READONLY_USER:
+        state: present
+        default_tablespace: APP_DATA
+        profile: APP_USER_PROFILE
+        authentication_type: password
+        locked: false
+        grants:
+          roles: [CONNECT, APP_READONLY]
+          grant_mode: exact
+
+    directories:
+      APP_EXPORT_DIR:
+        path: /oracle/u01/admin/APPDB1/APPPDB1/export
+        state: present
+
+    services:
+      APPPDB1_APP:
+        state: started                   # started | stopped | absent
+        role: PRIMARY                    # PRIMARY | PHYSICAL_STANDBY
+        policy: AUTOMATIC                # AUTOMATIC | MANUAL
+        failovertype: AUTO               # NONE | SESSION | SELECT | TRANSACTION | AUTO
+        failover_restore: LEVEL1
+        failoverretry: 30
+        failoverdelay: 10
+        preferred_instances: "APPDB11,APPDB12"
+        available_instances: ""
+        clb_goal: SHORT                  # SHORT | LONG
+        rlb_goal: SERVICE_TIME           # SERVICE_TIME | THROUGHPUT
+      APPPDB1_BATCH:
+        state: started
+        role: PRIMARY
+        policy: AUTOMATIC
+        preferred_instances: "APPDB12"
+        available_instances: "APPDB11"
+
+    scheduler:
+      job_classes:
+        BATCH_CLASS:
+          resource_consumer_group: BATCH_GROUP
+          logging_level: FULL
+          state: present
+      job_schedules:
+        NIGHTLY_SCHEDULE:
+          repeat_interval: "FREQ=DAILY;BYHOUR=2;BYMINUTE=0"
+          state: present
+      job_windows:
+        NIGHTLY_WINDOW:
+          resource_plan: BATCH_PLAN
+          schedule_name: NIGHTLY_SCHEDULE
+          duration: "+000 04:00:00"
+          state: present
+      jobs:
+        PURGE_OLD_RECORDS:
+          job_type: plsql_block
+          job_action: "BEGIN APP_OWNER.PKG_MAINTENANCE.PURGE_OLD_RECORDS; END;"
+          schedule_name: NIGHTLY_WINDOW
+          job_class: BATCH_CLASS
+          enabled: true
+          state: present

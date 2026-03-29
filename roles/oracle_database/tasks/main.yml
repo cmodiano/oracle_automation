@@ -1,0 +1,81 @@
+---
+# oracle_database - Create CDB via DBCA if absent, configure database-level properties.
+#
+# Requires: oracle_databases fact from catalog_loader
+# Uses: ibre5041.ansible_oracle_modules.oracle_db
+#       ibre5041.ansible_oracle_modules.oracle_crs_db
+#       ibre5041.ansible_oracle_modules.oracle_redo
+#       ibre5041.ansible_oracle_modules.oracle_sql
+
+- name: Create database via DBCA
+  ibre5041.ansible_oracle_modules.oracle_db:
+    oracle_home: "{{ db._oracle_home_path }}"
+    db_name: "{{ db.db_name }}"
+    db_unique_name: "{{ db.db_unique_name }}"
+    sid: "{{ db.sid_prefix }}"
+    sys_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/' ~ db.db_name ~ '/sys',
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    state: present
+    archivelog: "{{ db.archivelog | default(true) }}"
+    force_logging: "{{ db.force_logging | default(false) }}"
+    supplemental_logging: "{{ db.supplemental_logging | default(false) }}"
+    flashback: "{{ db.flashback | default(false) }}"
+    cdb: "{{ db.cdb | default(true) }}"
+    storage_type: "{{ db.storage_type | default(oracle_default_storage_type) }}"
+    datafile_dest: "{{ db.datafile_dest | default('+' ~ oracle_default_diskgroup) }}"
+    recoveryfile_dest: "{{ db.recoveryfile_dest | default('+FRA') }}"
+    characterset: "{{ db.characterset | default(oracle_default_characterset) }}"
+    db_options: >-
+      {{ oracle_db_options_default
+         | combine(db.db_options | default({}), recursive=True)
+      }}
+    initparams: "{{ db.init_parameters | default({}) }}"
+    dbconfig_type: "{{ db._topology | upper }}"
+  become_user: "{{ oracle_os_user }}"
+  when:
+    - db._is_first_node
+    - db._db_role != 'physical_standby'
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: db
+    label: "{{ db.db_name }}"
+  tags: [database, create]
+
+- name: Register database in CRS
+  ibre5041.ansible_oracle_modules.oracle_crs_db:
+    oracle_home: "{{ db._oracle_home_path }}"
+    name: "{{ db.db_name }}"
+    oraclehome: "{{ db._oracle_home_path }}"
+    state: started
+    startoptions: open
+  become_user: "{{ oracle_os_user }}"
+  when:
+    - db._is_first_node
+    - db._topology in ['rac', 'restart']
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: db
+    label: "{{ db.db_name }}"
+  tags: [database, crs]
+
+- name: Configure redo logs
+  ibre5041.ansible_oracle_modules.oracle_redo:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ db.db_name }}"
+    oracle_home: "{{ db._oracle_home_path }}"
+    groups: "{{ db.redo.groups_per_thread | default(4) }}"
+    size: "{{ db.redo.size | default('512M') }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  when:
+    - db._is_first_node
+    - db._db_role != 'physical_standby'
+    - db.redo is defined
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: db
+    label: "{{ db.db_name }}"
+  tags: [database, redo]

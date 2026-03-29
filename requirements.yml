@@ -1,0 +1,8 @@
+---
+collections:
+  - name: ibre5041.ansible_oracle_modules
+    version: ">=3.3.0"
+  - name: community.general
+    version: ">=7.0.0"
+  - name: community.hashi_vault
+    version: ">=5.0.0"

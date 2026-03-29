@@ -1,0 +1,18 @@
+---
+# oracle_service_management - Manage database services.
+# Selects oracle_crs_service (RAC/Restart) or oracle_services (standalone).
+#
+# Requires: oracle_databases fact from catalog_loader
+# Uses: ibre5041.ansible_oracle_modules.oracle_crs_service
+#       ibre5041.ansible_oracle_modules.oracle_services
+
+- name: Manage services for each database
+  ansible.builtin.include_tasks: manage_services_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db.pdbs is defined
+  tags: [services]
