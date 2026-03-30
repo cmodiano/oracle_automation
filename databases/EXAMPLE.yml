@@ -79,6 +79,16 @@ redo:
   groups_per_thread: 4               # Number of redo groups per thread (RAC: per instance)
   size: 512M                         # Size per redo log member
 
+# --- CDB-level users ---
+# Merged on top of oracle_default_cdb_users from inventory group_vars.
+# Default users are injected automatically; define here only to override
+# attributes or to suppress a default user with state: absent.
+# users:
+#   C##MONITORING:                       # Override default monitoring user's profile
+#     profile: CUSTOM_PROFILE
+#   C##UNWANTED_DEFAULT:                 # Suppress a default user for this CDB
+#     state: absent
+
 # --- CDB-level profiles ---
 # Keys reference oracle_standard_profiles from inventory group_vars
 # Values override specific attributes of the standard profile
@@ -150,6 +160,8 @@ pdbs:
       APP_ADMIN:
         state: present
 
+    # Users are merged on top of oracle_default_pdb_users from inventory
+    # group_vars. To suppress a default PDB user for this PDB, set state: absent.
     users:
       APP_OWNER:
         state: present

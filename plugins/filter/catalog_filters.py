@@ -11,6 +11,7 @@ class FilterModule:
             'catalog_merge': self.catalog_merge,
             'catalog_for_host': self.catalog_for_host,
             'resolve_oracle_home': self.resolve_oracle_home,
+            'merge_default_users': self.merge_default_users,
         }
 
     @staticmethod
@@ -73,3 +74,50 @@ class FilterModule:
                 f"Available: {list(oracle_homes.keys())}"
             )
         return oracle_homes[home_name]['path']
+
+    @staticmethod
+    def merge_default_users(catalog, default_cdb_users, default_pdb_users):
+        """Merge default CDB and PDB users into a database catalog dict.
+
+        Default users are injected as a base layer: catalog-defined users
+        take precedence via recursive merge. This lets a catalog override
+        specific attributes (e.g., default_tablespace) or suppress a
+        default user entirely with ``state: absent``.
+
+        Args:
+            catalog: A single database catalog dict.
+            default_cdb_users: Dict of default CDB-level users (keyed by username).
+            default_pdb_users: Dict of default PDB-level users (keyed by username).
+
+        Returns:
+            A new catalog dict with default users merged in.
+        """
+        result = copy.deepcopy(catalog)
+
+        # --- CDB-level users ---
+        if default_cdb_users:
+            existing_cdb_users = result.get('users', {})
+            # Default is base, catalog overrides on top
+            merged = copy.deepcopy(default_cdb_users)
+            for user, attrs in existing_cdb_users.items():
+                if user in merged and isinstance(attrs, dict):
+                    merged[user] = FilterModule.catalog_merge(merged[user], attrs)
+                else:
+                    merged[user] = copy.deepcopy(attrs)
+            result['users'] = merged
+
+        # --- PDB-level users ---
+        if default_pdb_users:
+            for pdb_name, pdb_config in result.get('pdbs', {}).items():
+                if not isinstance(pdb_config, dict):
+                    continue
+                existing_pdb_users = pdb_config.get('users', {})
+                merged = copy.deepcopy(default_pdb_users)
+                for user, attrs in existing_pdb_users.items():
+                    if user in merged and isinstance(attrs, dict):
+                        merged[user] = FilterModule.catalog_merge(merged[user], attrs)
+                    else:
+                        merged[user] = copy.deepcopy(attrs)
+                result['pdbs'][pdb_name]['users'] = merged
+
+        return result

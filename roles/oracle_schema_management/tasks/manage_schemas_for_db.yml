@@ -23,7 +23,79 @@
     _attr: "{{ item.1 }}"
   when: _db.profiles is defined
 
-# --- Step 2-4: Per-PDB schema management ---
+# --- Step 2: CDB-level users ---
+- name: "Manage CDB-level user {{ _cdb_user.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_user:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _cdb_user.key }}"
+    schema_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/' ~ _db.db_name ~ '/' ~ _cdb_user.key,
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    default_tablespace: "{{ _cdb_user.value.default_tablespace | default(omit) }}"
+    default_temp_tablespace: "{{ _cdb_user.value.default_temp_tablespace | default('TEMP') }}"
+    profile: "{{ _cdb_user.value.profile | default(omit) }}"
+    authentication_type: "{{ _cdb_user.value.authentication_type | default('password') }}"
+    expired: "{{ _cdb_user.value.expired | default(omit) }}"
+    locked: "{{ _cdb_user.value.locked | default(omit) }}"
+    state: "{{ _cdb_user.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _cdb_user
+    label: "{{ _db.db_name }}/{{ _cdb_user.key }}"
+  when:
+    - _db.users is defined
+    - _cdb_user.value.state | default('present') != 'absent'
+
+# --- Step 3: CDB-level grants (roles) ---
+- name: "Grant roles to CDB user {{ _cdb_grant_user.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_grant:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _cdb_grant_user.key }}"
+    grants: "{{ _cdb_grant_user.value.grants.roles | default([]) }}"
+    grant_mode: "{{ _cdb_grant_user.value.grants.grant_mode | default('append') }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _cdb_grant_user
+    label: "{{ _db.db_name }}/{{ _cdb_grant_user.key }}"
+  when:
+    - _db.users is defined
+    - _cdb_grant_user.value.grants is defined
+    - _cdb_grant_user.value.grants.roles is defined
+    - _cdb_grant_user.value.state | default('present') == 'present'
+
+# --- Step 4: CDB-level grants (system privileges) ---
+- name: "Grant system privileges to CDB user {{ _cdb_syspriv_user.key }} in {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_privs:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _cdb_syspriv_user.key }}"
+    privs: "{{ _cdb_syspriv_user.value.grants.system_privileges }}"
+    privs_type: system
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _db.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _cdb_syspriv_user
+    label: "{{ _db.db_name }}/{{ _cdb_syspriv_user.key }}"
+  when:
+    - _db.users is defined
+    - _cdb_syspriv_user.value.grants is defined
+    - _cdb_syspriv_user.value.grants.system_privileges is defined
+    - _cdb_syspriv_user.value.state | default('present') == 'present'
+
+# --- Per-PDB schema management ---
 - name: "Manage schemas for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
   ansible.builtin.include_tasks: manage_schemas_for_pdb.yml
   loop: "{{ _db.pdbs | default({}) | dict2items }}"

@@ -52,6 +52,12 @@ These group_vars files must exist in the inventory repo and are loaded automatic
 - `oracle_default_characterset`, `oracle_default_national_characterset`
 - `oracle_default_storage_type`, `oracle_default_diskgroup`
 
+### `group_vars/all/default_users.yml`
+- `oracle_default_cdb_users` dict (keyed by username) - users created in every CDB
+- `oracle_default_pdb_users` dict (keyed by username) - users created in every PDB
+- Both are merged as a base layer; per-catalog definitions override via recursive merge
+- Set `state: absent` in a catalog to suppress a default user for that database/PDB
+
 ### `group_vars/all/profiles.yml`
 - `oracle_standard_profiles` dict (keyed by profile name: APP_PROFILE, SVC_PROFILE, etc.)
 

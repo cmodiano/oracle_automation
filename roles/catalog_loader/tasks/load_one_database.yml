@@ -32,6 +32,15 @@
          | combine(_overlay_config, recursive=True)
       }}
 
+- name: "Merge default users: {{ _merged_db.db_name }}"
+  ansible.builtin.set_fact:
+    _merged_db: >-
+      {{ _merged_db
+         | merge_default_users(
+             oracle_default_cdb_users | default({}),
+             oracle_default_pdb_users | default({}))
+      }}
+
 - name: "Enrich catalog: {{ _merged_db.db_name }}"
   ansible.builtin.set_fact:
     _enriched_db: >-
