@@ -1,6 +1,11 @@
 ---
 # FPP Patching role defaults
 
+# Operating mode: prepare | patch
+#   prepare: provision working copy + pre-checks (can run days before maintenance)
+#   patch:   move databases to the prepared working copy + datapatch + post-checks
+fpp_mode: ""
+
 # FPP server ORACLE_HOME (where rhpctl lives)
 fpp_server_home: ""
 
@@ -8,7 +13,8 @@ fpp_server_home: ""
 fpp_gold_image: ""
 
 # Name for the new working copy (FPP provisioned home)
-# If empty, auto-generated: {{ fpp_gold_image }}_{{ ansible_date_time.epoch }}
+# If empty in prepare mode, auto-generated: {{ fpp_gold_image }}_{{ ansible_date_time.epoch }}
+# In patch mode, this MUST be set to the working copy created during prepare.
 fpp_working_copy_name: ""
 
 # Oracle home name (symbolic key) of the OLD home being replaced

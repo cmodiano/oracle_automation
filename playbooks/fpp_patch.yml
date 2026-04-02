@@ -1,32 +1,58 @@
 ---
-# FPP Patching Playbook
+# FPP Patching Playbook - Two-phase patching workflow
 #
-# Orchestrates Oracle Fleet Patching and Provisioning:
-#   Play 1: On target hosts - provision new home, move databases via rhpctl
-#   Play 2: On localhost  - update catalog overlays and git commit/push
+# Phase 1: PREPARE (run days/weeks before maintenance window)
+#   - Provisions a new working copy from a gold image
+#   - Runs pre-checks (binaries, patch level)
+#   - No database downtime
+#   - Outputs the working copy name for the patch phase
 #
-# Required extra_vars:
+# Phase 2: PATCH (run during maintenance window)
+#   - Moves databases to the prepared working copy
+#   - Runs datapatch
+#   - Verifies databases on the new home
+#   - Updates catalog overlays and commits to git
+#
+# Required extra_vars (both modes):
+#   fpp_mode:            prepare | patch
 #   oracle_environment:  dev | staging | prod
-#   fpp_gold_image:      FPP gold image name (e.g., "db_19_23_jan2026")
 #   oracle_home_old:     symbolic name of current home (e.g., "db_19_21")
-#   oracle_home_new:     symbolic name for the new home (e.g., "db_19_23")
+#   oracle_home_new:     symbolic name for new home (e.g., "db_19_23")
+#
+# Required extra_vars (prepare only):
+#   fpp_gold_image:      FPP gold image name (e.g., "db_19_23_jan2026")
+#
+# Required extra_vars (patch only):
+#   fpp_working_copy_name:  working copy from prepare phase
 #
 # Optional extra_vars:
-#   target_db:                    restrict to a single database
-#   fpp_working_copy_name:        custom name for the FPP working copy
-#   fpp_run_datapatch:            true/false (default: true)
-#   catalog_updater_git_push:     true/false (default: true)
+#   target_db:                restrict to a single database
+#   fpp_working_copy_name:    custom name (prepare) or required (patch)
+#   fpp_run_datapatch:        true/false (default: true)
+#   catalog_updater_git_push: true/false (default: true)
 #   catalog_updater_oracle_home_new_version: version string (e.g., "19.23.0.0")
 #
-# Example:
+# Examples:
+#
+#   # PREPARE - run anytime before the maintenance window:
 #   ansible-playbook playbooks/fpp_patch.yml \
+#     -e fpp_mode=prepare \
 #     -e oracle_environment=dev \
 #     -e fpp_gold_image=db_19_23_jan2026 \
 #     -e oracle_home_old=db_19_21 \
 #     -e oracle_home_new=db_19_23 \
+#     -e fpp_working_copy_name=db1923_dev_q1
+#
+#   # PATCH - run during the maintenance window:
+#   ansible-playbook playbooks/fpp_patch.yml \
+#     -e fpp_mode=patch \
+#     -e oracle_environment=dev \
+#     -e fpp_working_copy_name=db1923_dev_q1 \
+#     -e oracle_home_old=db_19_21 \
+#     -e oracle_home_new=db_19_23 \
 #     -e catalog_updater_oracle_home_new_version=19.23.0.0
 
-- name: "FPP Patching - {{ oracle_environment | default('unknown') }}"
+- name: "FPP {{ fpp_mode | default('unknown') | upper }} - {{ oracle_environment | default('unknown') }}"
   hosts: all
   collections:
     - ibre5041.ansible_oracle_modules
@@ -38,14 +64,29 @@
     - name: Validate required inputs
       ansible.builtin.assert:
         that:
+          - fpp_mode is defined
+          - fpp_mode in ['prepare', 'patch']
           - oracle_environment is defined
           - oracle_environment in ['dev', 'staging', 'prod']
-          - fpp_gold_image is defined
           - oracle_home_old is defined
           - oracle_home_new is defined
         fail_msg: >-
-          Required: oracle_environment, fpp_gold_image,
+          Required: fpp_mode (prepare|patch), oracle_environment,
           oracle_home_old, oracle_home_new
+
+    - name: Validate prepare-specific inputs
+      ansible.builtin.assert:
+        that:
+          - fpp_gold_image is defined and fpp_gold_image | length > 0
+        fail_msg: "Prepare mode requires fpp_gold_image"
+      when: fpp_mode == 'prepare'
+
+    - name: Validate patch-specific inputs
+      ansible.builtin.assert:
+        that:
+          - fpp_working_copy_name is defined and fpp_working_copy_name | length > 0
+        fail_msg: "Patch mode requires fpp_working_copy_name (from prepare phase)"
+      when: fpp_mode == 'patch'
 
   roles:
     - role: catalog_loader
@@ -59,6 +100,7 @@
   connection: local
   become: false
   gather_facts: true               # needed for ansible_date_time
+  when: fpp_mode == 'patch'        # only update catalog after actual patching
 
   roles:
     - role: catalog_updater

@@ -1,0 +1,125 @@
+---
+# FPP Patch phase - Run DURING the maintenance window.
+#
+# This phase:
+#   1. Validates the working copy exists (provisioned during prepare)
+#   2. Moves databases from old home to the prepared working copy
+#   3. Runs datapatch on moved databases
+#   4. Verifies databases are running on the new home
+#   5. Exports facts for catalog_updater
+#
+# Requires: fpp_working_copy_name set to the name from prepare phase.
+
+- name: Validate patch inputs
+  ansible.builtin.assert:
+    that:
+      - fpp_working_copy_name | length > 0
+      - oracle_home_old | length > 0
+      - oracle_home_new | length > 0
+      - oracle_homes[oracle_home_old] is defined
+    fail_msg: >-
+      FPP patch requires fpp_working_copy_name (from prepare phase),
+      oracle_home_old, oracle_home_new.
+
+- name: Resolve old oracle_home path
+  ansible.builtin.set_fact:
+    _fpp_old_home_path: "{{ oracle_home_old | resolve_oracle_home(oracle_homes) }}"
+
+- name: Identify databases on old oracle_home for this host
+  ansible.builtin.set_fact:
+    _fpp_databases: >-
+      {{ oracle_databases | default([])
+         | selectattr('_oracle_home_path', 'equalto', _fpp_old_home_path)
+         | list }}
+
+- name: Display databases to be moved
+  ansible.builtin.debug:
+    msg: >-
+      Will move {{ _fpp_databases | length }} database(s) from
+      {{ oracle_home_old }} to working copy {{ fpp_working_copy_name }}:
+      {{ _fpp_databases | map(attribute='db_name') | join(', ') }}
+
+- name: Skip host if no databases to patch
+  ansible.builtin.meta: end_host
+  when: _fpp_databases | length == 0
+
+# --- Validate working copy is ready ---
+
+- name: "FPP: Verify working copy {{ fpp_working_copy_name }} exists"
+  ansible.builtin.command:
+    cmd: >-
+      {{ fpp_server_home }}/bin/rhpctl query workingcopy
+      -workingcopy {{ fpp_working_copy_name }}
+      {{ fpp_rhpctl_extra_args }}
+  register: _fpp_wc_info
+  changed_when: false
+  become_user: "{{ oracle_os_user }}"
+
+- name: Extract new oracle_home path from working copy
+  ansible.builtin.set_fact:
+    _fpp_new_home_path: "{{ _fpp_wc_info.stdout | regex_search('Home Path:\\s*(.+)', '\\1') | first | trim }}"
+
+- name: Report new oracle_home path
+  ansible.builtin.debug:
+    msg: "Moving databases to: {{ _fpp_new_home_path }}"
+
+# --- Move databases ---
+
+- name: "FPP: Move databases to working copy {{ fpp_working_copy_name }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ fpp_server_home }}/bin/rhpctl move database
+      -sourcewc {{ oracle_home_old }}
+      -destwc {{ fpp_working_copy_name }}
+      -dbname {{ _db.db_name }}
+      {{ fpp_rhpctl_extra_args }}
+    timeout: "{{ fpp_move_timeout }}"
+  loop: "{{ _fpp_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  register: _fpp_move_results
+  become_user: "{{ oracle_os_user }}"
+  when: _db._is_first_node
+
+# --- Datapatch ---
+
+- name: "Run datapatch for moved databases"
+  ibre5041.ansible_oracle_modules.oracle_datapatch:
+    oracle_home: "{{ _fpp_new_home_path }}"
+    db_name: "{{ _db.db_name }}"
+  loop: "{{ _fpp_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  become_user: "{{ oracle_os_user }}"
+  when:
+    - fpp_run_datapatch | bool
+    - _db._is_first_node
+
+# --- Post-checks ---
+
+- name: "Verify databases are running on new oracle_home"
+  ibre5041.ansible_oracle_modules.oracle_facts:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _fpp_new_home_path }}"
+    database: true
+    instance: true
+    patch_level: true
+  loop: "{{ _fpp_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  register: _fpp_post_facts
+  become_user: "{{ oracle_os_user }}"
+  when: _db._is_first_node
+
+# --- Export facts for catalog_updater ---
+
+- name: Set patching result facts
+  ansible.builtin.set_fact:
+    fpp_patched_databases: "{{ _fpp_databases | map(attribute='db_name') | list }}"
+    fpp_new_home_path: "{{ _fpp_new_home_path }}"
+    cacheable: true
