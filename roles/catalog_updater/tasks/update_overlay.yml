@@ -1,0 +1,35 @@
+---
+# Update or create an overlay file for a single database.
+# Called from main.yml with loop_var: _db_name
+
+- name: "Check if overlay exists: {{ _db_name }}"
+  ansible.builtin.stat:
+    path: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+  register: _overlay_stat
+
+- name: "Load existing overlay: {{ _db_name }}"
+  ansible.builtin.include_vars:
+    file: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+    name: _existing_overlay
+  when: _overlay_stat.stat.exists
+
+- name: "Set empty overlay when none exists: {{ _db_name }}"
+  ansible.builtin.set_fact:
+    _existing_overlay: {}
+  when: not _overlay_stat.stat.exists
+
+- name: "Merge oracle_home into overlay: {{ _db_name }}"
+  ansible.builtin.set_fact:
+    _updated_overlay: >-
+      {{ _existing_overlay | combine({'oracle_home': catalog_updater_oracle_home_new}) }}
+
+- name: "Write overlay: {{ _db_name }}"
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Auto-updated by catalog_updater after FPP patching
+      # Environment: {{ catalog_updater_target_env }}
+      # Patched: {{ ansible_date_time.iso8601 | default('unknown') }}
+      {{ _updated_overlay | to_nice_yaml(indent=2) }}
+    dest: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+    mode: "0644"

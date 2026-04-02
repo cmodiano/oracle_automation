@@ -1,5 +1,9 @@
 ---
-# oracle_patching - Apply Oracle patches (OPatch) and run datapatch.
+# oracle_patching - Apply Oracle patches via OPatch and run datapatch.
+#
+# DEPRECATED: This role uses OPatch modules directly. For environments
+# using Oracle Fleet Patching and Provisioning (FPP), use the
+# oracle_fpp_patching role and the fpp_patch.yml playbook instead.
 #
 # Extra vars (NOT from catalog):
 #   oracle_home_name: key into oracle_homes dict

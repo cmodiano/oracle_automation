@@ -120,3 +120,31 @@ When using AAP, there are two options:
 1. **Single source** (recommended): Point both the AAP Project **and** Inventory Source to this repository. AAP will use `inventory/hosts.yml` (or a dynamic inventory script placed in `inventory/`) and automatically load the `group_vars/` from the same directory.
 
 2. **Dynamic inventory override**: Replace `inventory/hosts.yml` with a dynamic inventory plugin or script. The `group_vars/` files will still be loaded automatically by Ansible as long as they are in the same `inventory/` directory.
+
+## Automatic Catalog Updates (FPP Patching)
+
+When Oracle FPP (Fleet Patching and Provisioning) patches a database and moves it to a new Oracle Home, the `catalog_updater` role automatically updates this repository:
+
+1. **New Oracle Home registration**: If the new home doesn't exist in `inventory/group_vars/all/oracle_defaults.yml`, it is added automatically.
+
+2. **Overlay update**: The database's environment overlay (`databases/overlays/{env}/{DB}.yml`) is created or updated with the new `oracle_home` reference. This preserves the base catalog file and allows per-environment progression (dev patched first, then staging, then prod).
+
+3. **Git commit and push**: Changes are committed and pushed automatically.
+
+### Data flow after FPP patching
+
+```
+FPP patches APPDB1 in dev (db_19_21 → db_19_23)
+    │
+    ├─► oracle_defaults.yml: db_19_23 entry added (if absent)
+    ├─► databases/overlays/dev/APPDB1.yml: oracle_home: db_19_23
+    └─► git commit + push
+    
+Result:
+  dev:  catalog_loader merges base + overlay → oracle_home = db_19_23 ✓
+  prod: catalog_loader merges base (no overlay) → oracle_home = db_19_21 (unchanged)
+```
+
+### Promoting patches across environments
+
+When all environments are patched to the same version, the `oracle_home` change can be promoted from the overlay to the base catalog file and the overlays cleaned up. This is a manual step to maintain explicit control over the promotion.

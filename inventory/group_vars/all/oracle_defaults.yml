@@ -28,6 +28,8 @@ oracle_os_groups:
 
 # Oracle Home definitions - catalog files reference these by name.
 # Adding a new patched home = add an entry here, no catalog files change.
+# NOTE: This section may be updated automatically by catalog_updater
+# after FPP patching. New entries are appended below existing ones.
 oracle_homes:
   db_19_21:
     version: "19.21.0.0"

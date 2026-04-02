@@ -1,0 +1,29 @@
+---
+# FPP Patching role defaults
+
+# FPP server ORACLE_HOME (where rhpctl lives)
+fpp_server_home: ""
+
+# Gold image name to use as source for the new working copy
+fpp_gold_image: ""
+
+# Name for the new working copy (FPP provisioned home)
+# If empty, auto-generated: {{ fpp_gold_image }}_{{ ansible_date_time.epoch }}
+fpp_working_copy_name: ""
+
+# Oracle home name (symbolic key) of the OLD home being replaced
+oracle_home_old: ""
+
+# Oracle home name (symbolic key) for the NEW home
+# Must match the entry that will be added to oracle_defaults.yml
+oracle_home_new: ""
+
+# Run datapatch after moving databases (default: true)
+fpp_run_datapatch: true
+
+# Additional rhpctl options (free-form string appended to commands)
+fpp_rhpctl_extra_args: ""
+
+# Timeout in seconds for rhpctl operations
+fpp_provision_timeout: 3600
+fpp_move_timeout: 7200

@@ -1,0 +1,42 @@
+---
+# catalog_updater - Defaults for automatic catalog updates after patching.
+#
+# This role updates the repo to reflect state changes made by external
+# tools (FPP, manual patching, etc.) and commits the changes.
+
+# Old oracle_home symbolic name being replaced
+catalog_updater_oracle_home_old: "{{ oracle_home_old | default('') }}"
+
+# New oracle_home symbolic name
+catalog_updater_oracle_home_new: "{{ oracle_home_new | default('') }}"
+
+# New oracle_home filesystem path (set by oracle_fpp_patching)
+catalog_updater_oracle_home_new_path: "{{ fpp_new_home_path | default('') }}"
+
+# New oracle_home version string (e.g., "19.23.0.0")
+catalog_updater_oracle_home_new_version: ""
+
+# New oracle_home edition (default: EE)
+catalog_updater_oracle_home_new_edition: EE
+
+# Environment that was patched
+catalog_updater_target_env: "{{ oracle_environment | default('') }}"
+
+# List of database names that were patched
+# (auto-populated by oracle_fpp_patching, or pass manually)
+catalog_updater_databases: "{{ fpp_patched_databases | default([]) }}"
+
+# Path to the repo root
+catalog_updater_repo_root: "{{ playbook_dir }}/.."
+
+# Path to the database catalog directory
+catalog_updater_catalog_dir: "{{ catalog_updater_repo_root }}/databases"
+
+# Path to oracle_defaults.yml
+catalog_updater_oracle_defaults_file: "{{ catalog_updater_repo_root }}/inventory/group_vars/all/oracle_defaults.yml"
+
+# Git settings
+catalog_updater_git_commit: true
+catalog_updater_git_push: true
+catalog_updater_git_remote: origin
+catalog_updater_git_branch: ""              # Empty = current branch

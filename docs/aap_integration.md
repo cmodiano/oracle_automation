@@ -117,7 +117,9 @@ extra_vars:
 | Oracle - Manage Services | `playbooks/manage_services.yml` | `oracle_environment` | `target_db` |
 | Oracle - Manage Directories | `playbooks/manage_directories.yml` | `oracle_environment` | `target_db` |
 | Oracle - Manage Scheduler | `playbooks/manage_scheduler.yml` | `oracle_environment` | `target_db` |
-| Oracle - Apply Patch | `playbooks/apply_patch.yml` | `oracle_environment`, `oracle_home_name`, `patch_id`, `patch_base` | `rolling`, `opatchauto` |
+| Oracle - FPP Patch | `playbooks/fpp_patch.yml` | `oracle_environment`, `fpp_gold_image`, `oracle_home_old`, `oracle_home_new` | `target_db`, `fpp_working_copy_name`, `catalog_updater_oracle_home_new_version` |
+| Oracle - Register Home | `playbooks/register_oracle_home.yml` | `home_name`, `home_version`, `home_path` | `home_edition` |
+| Oracle - Apply Patch (OPatch) | `playbooks/apply_patch.yml` | `oracle_environment`, `oracle_home_name`, `patch_id`, `patch_base` | `rolling`, `opatchauto` |
 | Oracle - DG Switchover | `playbooks/dataguard_switchover.yml` | `oracle_environment`, `target_db`, `switchover_target` | |
 | Oracle - DG Failover | `playbooks/dataguard_failover.yml` | `oracle_environment`, `target_db`, `failover_target` | |
 | Oracle - Database Facts | `playbooks/database_facts.yml` | `oracle_environment` | `target_db` |
@@ -138,9 +140,14 @@ Install Infra -> Create Database -> Manage PDBs -> Manage Tablespaces
     -> Manage Scheduler -> Database Facts
 ```
 
-**Quarterly Patching:**
+**FPP Patching (recommended):**
 ```
-Database Facts (pre-patch) -> Apply Patch -> Database Facts (post-patch)
+FPP Patch (provisions new home, moves DBs, updates catalog, auto-commits)
+```
+
+**OPatch Patching (legacy):**
+```
+Database Facts (pre-patch) -> Apply Patch (OPatch) -> Database Facts (post-patch)
 ```
 
 **Environment Refresh:**

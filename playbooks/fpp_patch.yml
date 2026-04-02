@@ -1,0 +1,65 @@
+---
+# FPP Patching Playbook
+#
+# Orchestrates Oracle Fleet Patching and Provisioning:
+#   Play 1: On target hosts - provision new home, move databases via rhpctl
+#   Play 2: On localhost  - update catalog overlays and git commit/push
+#
+# Required extra_vars:
+#   oracle_environment:  dev | staging | prod
+#   fpp_gold_image:      FPP gold image name (e.g., "db_19_23_jan2026")
+#   oracle_home_old:     symbolic name of current home (e.g., "db_19_21")
+#   oracle_home_new:     symbolic name for the new home (e.g., "db_19_23")
+#
+# Optional extra_vars:
+#   target_db:                    restrict to a single database
+#   fpp_working_copy_name:        custom name for the FPP working copy
+#   fpp_run_datapatch:            true/false (default: true)
+#   catalog_updater_git_push:     true/false (default: true)
+#   catalog_updater_oracle_home_new_version: version string (e.g., "19.23.0.0")
+#
+# Example:
+#   ansible-playbook playbooks/fpp_patch.yml \
+#     -e oracle_environment=dev \
+#     -e fpp_gold_image=db_19_23_jan2026 \
+#     -e oracle_home_old=db_19_21 \
+#     -e oracle_home_new=db_19_23 \
+#     -e catalog_updater_oracle_home_new_version=19.23.0.0
+
+- name: "FPP Patching - {{ oracle_environment | default('unknown') }}"
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  serial: 1                          # Rolling: one node at a time for RAC
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate required inputs
+      ansible.builtin.assert:
+        that:
+          - oracle_environment is defined
+          - oracle_environment in ['dev', 'staging', 'prod']
+          - fpp_gold_image is defined
+          - oracle_home_old is defined
+          - oracle_home_new is defined
+        fail_msg: >-
+          Required: oracle_environment, fpp_gold_image,
+          oracle_home_old, oracle_home_new
+
+  roles:
+    - role: catalog_loader
+      tags: [always]
+
+    - role: oracle_fpp_patching
+      tags: [fpp, patching]
+
+- name: "Update catalog after FPP patching"
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true               # needed for ansible_date_time
+
+  roles:
+    - role: catalog_updater
+      tags: [catalog, update]
