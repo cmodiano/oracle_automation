@@ -1,0 +1,17 @@
+---
+# ============================================================
+# Staging Environment Defaults
+# ============================================================
+
+oracle_environment: staging
+
+oracle_env_db_defaults:
+  archivelog: true
+  force_logging: false
+  flashback: false
+  supplemental_logging: false
+
+oracle_env_parameters:
+  db_recovery_file_dest_size: 100G
+
+oracle_dev_memory_scale: 0.5

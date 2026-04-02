@@ -1,0 +1,63 @@
+---
+# ============================================================
+# Oracle Global Defaults
+# ============================================================
+# Standard paths, OS users, Oracle Home definitions, and
+# global database defaults. These apply to ALL environments.
+# ============================================================
+
+# Standard paths - mirrors collection's default_vars_only role
+oracle_base: /oracle/u01
+oracle_install_dir_root: "{{ oracle_base }}"
+oracle_install_dir_temp: "{{ oracle_base }}/tmp"
+oracle_install_dir_base: "{{ oracle_base }}/base"
+oracle_install_dir_prod: "{{ oracle_base }}/product"
+oracle_inventory_location: "{{ oracle_base }}/oraInventory"
+
+# OS user/group - matches collection conventions
+oracle_os_user: oracle
+oracle_os_uid: 800
+oracle_os_group: oinstall
+oracle_os_groups:
+  - { group: oinstall, gid: 800 }
+  - { group: dba, gid: 801 }
+  - { group: oper, gid: 802 }
+  - { group: asmadmin, gid: 803 }
+  - { group: asmdba, gid: 804 }
+  - { group: asmoper, gid: 805 }
+
+# Oracle Home definitions - catalog files reference these by name.
+# Adding a new patched home = add an entry here, no catalog files change.
+oracle_homes:
+  db_19_21:
+    version: "19.21.0.0"
+    path: "{{ oracle_install_dir_prod }}/19.21.0.0"
+    edition: EE
+    media: db_home_19_21.zip
+  db_19_23:
+    version: "19.23.0.0"
+    path: "{{ oracle_install_dir_prod }}/19.23.0.0"
+    edition: EE
+    media: db_home_19_23.zip
+  db_21_3:
+    version: "21.3.0.0"
+    path: "{{ oracle_install_dir_prod }}/21.3.0.0"
+    edition: EE
+    media: LINUX.X64_213000_db_home.zip
+
+# Default database options (minimalist baseline)
+oracle_db_options_default:
+  JSERVER: false
+  ORACLE_TEXT: false
+  IMEDIA: false
+  CWMLITE: false
+  SPATIAL: false
+  OMS: false
+  APEX: false
+  DV: false
+
+# Global defaults
+oracle_default_characterset: AL32UTF8
+oracle_default_national_characterset: AL16UTF16
+oracle_default_storage_type: ASM
+oracle_default_diskgroup: XDATA

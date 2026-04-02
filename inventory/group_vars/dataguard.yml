@@ -1,0 +1,11 @@
+---
+# ============================================================
+# Data Guard Topology Defaults
+# ============================================================
+
+oracle_dg_defaults:
+  archivelog: true
+  force_logging: true
+  supplemental_logging: true
+  flashback: true
+  standby_file_management: AUTO

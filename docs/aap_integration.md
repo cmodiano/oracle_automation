@@ -3,24 +3,26 @@
 ## Architecture
 
 ```
-+------------------+     +---------------------+     +---------------------------+
-| Inventory Repo   |     | oracle_automation   |     | Execution Environment     |
-| (AAP Inventory   |     | (AAP Project)       |     | (Container Image)         |
-|  Source)          |     |                     |     |                           |
-| - hosts/groups   |     | - playbooks/        |     | - ansible-core            |
-| - group_vars/    |     | - roles/            |     | - ibre5041.ansible_oracle |
-| - host_vars/     |     | - databases/        |     |   _modules collection     |
-| - inventory.py   |     | - plugins/filter/   |     | - community.hashi_vault   |
-+------------------+     +---------------------+     | - community.general       |
-        |                         |                   | - python oracledb         |
-        v                         v                   +---------------------------+
-   AAP Inventory            AAP Project                          |
-        |                         |                              v
-        +------------+------------+                    AAP Execution Environment
-                     |
-                     v
-              AAP Job Template
-              (Inventory + Project + EE + Credentials)
++---------------------------------------------+     +---------------------------+
+| oracle_automation                            |     | Execution Environment     |
+| (AAP Project + Inventory Source)             |     | (Container Image)         |
+|                                              |     |                           |
+| - inventory/hosts.yml (or dynamic plugin)    |     | - ansible-core            |
+| - inventory/group_vars/                      |     | - ibre5041.ansible_oracle |
+| - databases/                                 |     |   _modules collection     |
+| - playbooks/                                 |     | - community.hashi_vault   |
+| - roles/                                     |     | - community.general       |
+| - plugins/filter/                            |     | - python oracledb         |
++---------------------------------------------+     +---------------------------+
+        |                                                        |
+        v                                                        v
+   AAP Project + Inventory Source                    AAP Execution Environment
+        |                                                        |
+        +----------------------------+---------------------------+
+                                     |
+                                     v
+                              AAP Job Template
+                    (Inventory + Project + EE + Credentials)
 ```
 
 ## Execution Environment (EE)
@@ -49,20 +51,25 @@ hvac>=1.0.0         # HashiCorp Vault client
 
 ## AAP Configuration
 
-### 1. Create Inventory
-
-1. Create a new Inventory in AAP
-2. Add an Inventory Source pointing to your inventory repo
-3. The Python inventory builder provides hosts, groups, and variables
-4. Verify groups exist: `dev`, `staging`, `prod`, `rac`, `standalone`, `dataguard`
-
-### 2. Create Project
+### 1. Create Project
 
 1. Create a new Project in AAP
 2. Source: Git
 3. URL: `https://github.com/cmodiano/oracle_automation.git`
 4. Branch: `main`
 5. Update on launch: Yes
+
+### 2. Create Inventory
+
+1. Create a new Inventory in AAP
+2. Add an Inventory Source pointing to the **same** Project
+3. Source path: `inventory/`
+4. AAP will automatically discover `hosts.yml` and load `group_vars/`
+5. Verify groups exist: `dev`, `staging`, `prod`, `rac`, `standalone`, `dataguard`
+
+**Alternative: Dynamic inventory** — Replace `inventory/hosts.yml` with a dynamic
+inventory plugin (e.g., `inventory/oracle_hosts.py`). The `group_vars/` directory
+will still be loaded automatically.
 
 ### 3. Create Credential Type: Oracle Vault Lookup
 
@@ -117,7 +124,7 @@ extra_vars:
 | Oracle - Install Infra | `playbooks/install_infrastructure.yml` | `oracle_environment` | |
 
 All templates should use:
-- **Inventory**: Your Oracle inventory
+- **Inventory**: Your Oracle inventory (sourced from this project's `inventory/` directory)
 - **Project**: oracle_automation
 - **Execution Environment**: Your Oracle EE
 - **Credentials**: Machine credential + Oracle Vault Lookup credential
@@ -145,8 +152,8 @@ Database Facts (source) -> Database Refresh -> Manage Parameters (target)
 ## Variable Flow
 
 ```
-Inventory repo group_vars          oracle_automation databases/
-(loaded by AAP Inventory)          (loaded by catalog_loader role)
+inventory/group_vars/               databases/
+(loaded automatically by Ansible)   (loaded by catalog_loader role)
          |                                    |
          v                                    v
   oracle_homes                        databases/APPDB1.yml

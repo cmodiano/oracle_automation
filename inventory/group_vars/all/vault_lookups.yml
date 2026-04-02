@@ -1,0 +1,22 @@
+---
+# ============================================================
+# HashiCorp Vault Configuration
+# ============================================================
+# NO secrets stored here. Secrets are injected by AAP
+# credential type or environment variables at runtime.
+#
+# Vault path convention mirrors catalog hierarchy:
+#   <engine>/data/<db_name>/<pdb_name>/<username>
+# Example: oracle-secrets/data/APPDB1/APPPDB1/APP_OWNER
+#
+# Each secret contains:
+#   password: <the password>
+#
+# SYS/SYSTEM passwords:
+#   oracle-secrets/data/<db_name>/sys
+#   oracle-secrets/data/<db_name>/system
+# ============================================================
+
+vault_addr: "{{ lookup('env', 'VAULT_ADDR') | default('https://vault.corp.example.com:8200', true) }}"
+vault_engine: oracle-secrets
+vault_auth_method: approle
