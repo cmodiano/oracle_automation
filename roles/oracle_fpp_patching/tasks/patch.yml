@@ -3,7 +3,7 @@
 #
 # This phase:
 #   1. Validates the working copy exists (provisioned during prepare)
-#   2. Identifies databases not yet on oracle_home_new
+#   2. Identifies databases not yet on oracle_home_target
 #   3. Moves each database to the prepared working copy
 #   4. Runs datapatch on moved databases
 #   5. Verifies databases are running on the new home
@@ -15,32 +15,27 @@
   ansible.builtin.assert:
     that:
       - fpp_working_copy_name | length > 0
-      - oracle_home_new | length > 0
+      - oracle_home_target | length > 0
     fail_msg: >-
-      FPP patch requires fpp_working_copy_name (from prepare phase)
-      and oracle_home_new.
+      FPP patch requires fpp_working_copy_name (from prepare phase).
+      oracle_home_target comes from group_vars.
 
 - name: Identify databases NOT yet on target oracle_home
   ansible.builtin.set_fact:
     _fpp_databases: >-
       {{ oracle_databases | default([])
-         | rejectattr('oracle_home', 'equalto', oracle_home_new)
+         | rejectattr('oracle_home', 'equalto', oracle_home_target)
          | list }}
-
-- name: Collect current oracle_home names for catalog_updater
-  ansible.builtin.set_fact:
-    _fpp_old_homes: >-
-      {{ _fpp_databases | map(attribute='oracle_home') | unique | list }}
 
 - name: Display databases to be moved
   ansible.builtin.debug:
     msg: >-
       Will move {{ _fpp_databases | length }} database(s) to
-      working copy {{ fpp_working_copy_name }}:
+      working copy {{ fpp_working_copy_name }} ({{ oracle_home_target }}):
       {{ _fpp_databases | map(attribute='db_name') | join(', ') }}
-      (from homes: {{ _fpp_old_homes | join(', ') }})
+      (from homes: {{ _fpp_databases | map(attribute='oracle_home') | unique | join(', ') }})
 
-- name: Skip host if no databases to patch
+- name: Skip host if all databases already on target
   ansible.builtin.meta: end_host
   when: _fpp_databases | length == 0
 
@@ -78,7 +73,7 @@
   loop: "{{ _fpp_databases }}"
   loop_control:
     loop_var: _db
-    label: "{{ _db.db_name }} ({{ _db.oracle_home }} → {{ oracle_home_new }})"
+    label: "{{ _db.db_name }} ({{ _db.oracle_home }} → {{ oracle_home_target }})"
   register: _fpp_move_results
   become_user: "{{ oracle_os_user }}"
   when: _db._is_first_node
@@ -123,5 +118,4 @@
   ansible.builtin.set_fact:
     fpp_patched_databases: "{{ _fpp_databases | map(attribute='db_name') | list }}"
     fpp_new_home_path: "{{ _fpp_new_home_path }}"
-    fpp_old_homes: "{{ _fpp_old_homes }}"
     cacheable: true

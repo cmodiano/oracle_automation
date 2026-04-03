@@ -9,17 +9,18 @@ fpp_mode: ""
 # FPP server ORACLE_HOME (where rhpctl lives)
 fpp_server_home: ""
 
-# Gold image name to use as source for the new working copy (prepare mode)
-fpp_gold_image: ""
+# Target oracle_home - derived from group_vars by default.
+# All databases not yet on this home will be patched.
+oracle_home_target: "{{ oracle_home_target }}"
 
-# Name for the new working copy (FPP provisioned home)
+# FPP gold image name - derived from target home + convention by default.
+# Override with extra_var if the naming convention doesn't apply.
+fpp_gold_image: "{{ oracle_home_target }}{{ fpp_gold_image_suffix | default('_gold') }}"
+
+# Name for the new working copy (FPP provisioned home).
 # In prepare mode: if empty, auto-generated from gold image + timestamp.
 # In patch mode: MUST be set to the working copy created during prepare.
 fpp_working_copy_name: ""
-
-# Oracle home name (symbolic key) for the NEW home.
-# The current home of each database is read from the catalog automatically.
-oracle_home_new: ""
 
 # Run datapatch after moving databases (default: true)
 fpp_run_datapatch: true

@@ -35,17 +35,29 @@ oracle_homes:
     version: "19.21.0.0"
     path: "{{ oracle_install_dir_prod }}/19.21.0.0"
     edition: EE
-    media: db_home_19_21.zip
   db_19_23:
     version: "19.23.0.0"
     path: "{{ oracle_install_dir_prod }}/19.23.0.0"
     edition: EE
-    media: db_home_19_23.zip
   db_21_3:
     version: "21.3.0.0"
     path: "{{ oracle_install_dir_prod }}/21.3.0.0"
     edition: EE
-    media: LINUX.X64_213000_db_home.zip
+
+# Target oracle_home for patching convergence.
+# All databases should converge to this home. The FPP patching roles
+# automatically identify databases not yet on this home and patch them.
+# When a new quarterly patch is released:
+#   1. Add the new home entry to oracle_homes above
+#   2. Update oracle_home_target to the new key
+#   3. Run fpp_patch.yml in prepare mode, then patch mode
+oracle_home_target: db_19_23
+
+# FPP gold image naming convention.
+# The gold image name is derived from the target home key:
+#   {{ oracle_home_target }}{{ fpp_gold_image_suffix }}
+# Example: oracle_home_target=db_19_23, suffix=_gold → gold image = db_19_23_gold
+fpp_gold_image_suffix: "_gold"
 
 # Default database options (minimalist baseline)
 oracle_db_options_default:

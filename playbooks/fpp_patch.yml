@@ -13,42 +13,34 @@
 #   - Verifies databases on the new home
 #   - Updates catalog overlays and commits to git
 #
-# Variables resolved automatically:
-#   oracle_environment:  from inventory group_vars (dev.yml / staging.yml / prod.yml)
-#   oracle_home (current): from database catalog files (databases/*.yml)
+# Variables resolved automatically from group_vars:
+#   oracle_environment:   from inventory group_vars (host group membership)
+#   oracle_home_target:   from group_vars/all/oracle_defaults.yml
+#   fpp_gold_image:       derived from oracle_home_target + fpp_gold_image_suffix
 #
-# Required extra_vars (both modes):
-#   fpp_mode:         prepare | patch
-#   oracle_home_new:  symbolic name for the new home (e.g., "db_19_23")
-#
-# Required extra_vars (prepare only):
-#   fpp_gold_image:   FPP gold image name (e.g., "db_19_23_jan2026")
+# Required extra_vars:
+#   fpp_mode:  prepare | patch
 #
 # Required extra_vars (patch only):
 #   fpp_working_copy_name:  working copy created during prepare phase
 #
 # Optional extra_vars:
 #   target_db:                restrict to a single database
-#   fpp_working_copy_name:    custom name (prepare) or required (patch)
+#   fpp_working_copy_name:    custom name (overrides auto-generated in prepare)
+#   fpp_gold_image:           override derived gold image name
 #   fpp_run_datapatch:        true/false (default: true)
 #   catalog_updater_git_push: true/false (default: true)
-#   catalog_updater_oracle_home_new_version: version string (e.g., "19.23.0.0")
 #
 # Examples:
 #
-#   # PREPARE - run anytime before the maintenance window:
+#   # PREPARE - zero extra_vars beyond fpp_mode:
 #   ansible-playbook playbooks/fpp_patch.yml -l dev \
-#     -e fpp_mode=prepare \
-#     -e fpp_gold_image=db_19_23_jan2026 \
-#     -e oracle_home_new=db_19_23 \
-#     -e fpp_working_copy_name=db1923_dev_q1
+#     -e fpp_mode=prepare
 #
-#   # PATCH - run during the maintenance window:
+#   # PATCH - only needs the working copy name from prepare output:
 #   ansible-playbook playbooks/fpp_patch.yml -l dev \
 #     -e fpp_mode=patch \
-#     -e fpp_working_copy_name=db1923_dev_q1 \
-#     -e oracle_home_new=db_19_23 \
-#     -e catalog_updater_oracle_home_new_version=19.23.0.0
+#     -e fpp_working_copy_name=db_19_23_oradev-node-1
 
 - name: "FPP {{ fpp_mode | default('unknown') | upper }} - {{ oracle_environment | default('unknown') }}"
   hosts: all
@@ -64,16 +56,7 @@
         that:
           - fpp_mode is defined
           - fpp_mode in ['prepare', 'patch']
-          - oracle_home_new is defined
-        fail_msg: >-
-          Required: fpp_mode (prepare|patch), oracle_home_new
-
-    - name: Validate prepare-specific inputs
-      ansible.builtin.assert:
-        that:
-          - fpp_gold_image is defined and fpp_gold_image | length > 0
-        fail_msg: "Prepare mode requires fpp_gold_image"
-      when: fpp_mode == 'prepare'
+        fail_msg: "Required: fpp_mode (prepare|patch)"
 
     - name: Validate patch-specific inputs
       ansible.builtin.assert:

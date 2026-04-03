@@ -4,8 +4,8 @@
 # This role updates the repo to reflect state changes made by external
 # tools (FPP, manual patching, etc.) and commits the changes.
 
-# New oracle_home symbolic name
-catalog_updater_oracle_home_new: "{{ oracle_home_new | default('') }}"
+# New oracle_home symbolic name (from group_vars)
+catalog_updater_oracle_home_new: "{{ oracle_home_target | default('') }}"
 
 # New oracle_home filesystem path (set by oracle_fpp_patching)
 catalog_updater_oracle_home_new_path: "{{ fpp_new_home_path | default('') }}"

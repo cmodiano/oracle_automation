@@ -117,8 +117,8 @@ extra_vars:
 | Oracle - Manage Services | `playbooks/manage_services.yml` | _(none)_ | `target_db` |
 | Oracle - Manage Directories | `playbooks/manage_directories.yml` | _(none)_ | `target_db` |
 | Oracle - Manage Scheduler | `playbooks/manage_scheduler.yml` | _(none)_ | `target_db` |
-| Oracle - FPP Prepare | `playbooks/fpp_patch.yml` | `fpp_mode=prepare`, `fpp_gold_image`, `oracle_home_new` | `target_db`, `fpp_working_copy_name` |
-| Oracle - FPP Patch | `playbooks/fpp_patch.yml` | `fpp_mode=patch`, `fpp_working_copy_name`, `oracle_home_new` | `target_db`, `catalog_updater_oracle_home_new_version` |
+| Oracle - FPP Prepare | `playbooks/fpp_patch.yml` | `fpp_mode=prepare` | `target_db`, `fpp_working_copy_name`, `fpp_gold_image` |
+| Oracle - FPP Patch | `playbooks/fpp_patch.yml` | `fpp_mode=patch`, `fpp_working_copy_name` | `target_db` |
 | Oracle - Register Home | `playbooks/register_oracle_home.yml` | `home_name`, `home_version`, `home_path` | `home_edition` |
 | Oracle - Apply Patch (OPatch) | `playbooks/apply_patch.yml` | `oracle_home_name`, `patch_id`, `patch_base` | `rolling`, `opatchauto` |
 | Oracle - DG Switchover | `playbooks/dataguard_switchover.yml` | `target_db`, `switchover_target` | |
