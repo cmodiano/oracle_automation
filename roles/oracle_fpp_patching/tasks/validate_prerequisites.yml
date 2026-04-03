@@ -1,0 +1,36 @@
+---
+# Validate prerequisite environments for each database in the patch plan.
+#
+# For each DB, derives its environment chain from host_mapping keys
+# intersected with fpp_env_progression. All environments before the
+# current one must already declare the target oracle_home.
+#
+# Examples:
+#   DB with host_mapping: {dev, staging, prod}
+#     Patching prod → must check staging AND dev
+#     Patching staging → must check dev
+#     Patching dev → no prerequisites
+#
+#   DB with host_mapping: {dev, prod}
+#     Patching prod → must check dev (staging skipped, DB doesn't exist there)
+#     Patching dev → no prerequisites
+#
+#   DB with host_mapping: {prod}
+#     Patching prod → no prerequisites
+#
+# Uses lookup('file') to read overlay/base catalog files directly from
+# the repo (runs on controller side).
+
+- name: Set catalog directory path
+  ansible.builtin.set_fact:
+    _catalog_dir: "{{ playbook_dir }}/../databases"
+
+# Build prerequisite check results for all databases in the plan.
+# For each DB, compute its env chain and read the effective oracle_home
+# for each prerequisite environment.
+- name: "Check prerequisites: {{ _entry.db.db_name }}"
+  ansible.builtin.include_tasks: check_one_prerequisite.yml
+  loop: "{{ _fpp_patch_plan }}"
+  loop_control:
+    loop_var: _entry
+    label: "{{ _entry.db.db_name }} → {{ _entry.desired_home }}"

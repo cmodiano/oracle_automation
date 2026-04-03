@@ -49,6 +49,15 @@
   ansible.builtin.set_fact:
     _fpp_patch_plan: "{{ _fpp_patch_plan | default([]) }}"
 
+# --- Validate prerequisite environments ---
+# Before patching in staging/prod, verify that the DB is already at
+# the target oracle_home in all lower environments (per its host_mapping).
+# Databases that don't exist in a lower env skip that check.
+
+- name: Validate prerequisite environments
+  ansible.builtin.include_tasks: validate_prerequisites.yml
+  when: _fpp_patch_plan | length > 0
+
 # --- Identify unique target homes ---
 
 - name: Identify target homes to provision

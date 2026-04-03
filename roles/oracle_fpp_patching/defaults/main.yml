@@ -10,6 +10,18 @@
 #   patch:   move databases + datapatch + post-checks (during maintenance window)
 fpp_mode: ""
 
+# Environment progression order for prerequisite validation.
+# Before patching a DB in staging, the role verifies that the same DB
+# is already at the target oracle_home in dev. Before prod, it checks
+# staging (or dev if the DB has no staging).
+# Databases that only exist in a subset of envs skip missing ones:
+#   host_mapping has dev+prod only → chain is [dev, prod]
+#   host_mapping has prod only     → no prerequisites
+fpp_env_progression:
+  - dev
+  - staging
+  - prod
+
 # FPP server ORACLE_HOME (where rhpctl lives)
 fpp_server_home: ""
 
