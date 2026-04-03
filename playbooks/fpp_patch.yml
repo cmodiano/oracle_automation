@@ -13,17 +13,19 @@
 #   - Verifies databases on the new home
 #   - Updates catalog overlays and commits to git
 #
+# Variables resolved automatically:
+#   oracle_environment:  from inventory group_vars (dev.yml / staging.yml / prod.yml)
+#   oracle_home (current): from database catalog files (databases/*.yml)
+#
 # Required extra_vars (both modes):
-#   fpp_mode:            prepare | patch
-#   oracle_environment:  dev | staging | prod
-#   oracle_home_old:     symbolic name of current home (e.g., "db_19_21")
-#   oracle_home_new:     symbolic name for new home (e.g., "db_19_23")
+#   fpp_mode:         prepare | patch
+#   oracle_home_new:  symbolic name for the new home (e.g., "db_19_23")
 #
 # Required extra_vars (prepare only):
-#   fpp_gold_image:      FPP gold image name (e.g., "db_19_23_jan2026")
+#   fpp_gold_image:   FPP gold image name (e.g., "db_19_23_jan2026")
 #
 # Required extra_vars (patch only):
-#   fpp_working_copy_name:  working copy from prepare phase
+#   fpp_working_copy_name:  working copy created during prepare phase
 #
 # Optional extra_vars:
 #   target_db:                restrict to a single database
@@ -35,20 +37,16 @@
 # Examples:
 #
 #   # PREPARE - run anytime before the maintenance window:
-#   ansible-playbook playbooks/fpp_patch.yml \
+#   ansible-playbook playbooks/fpp_patch.yml -l dev \
 #     -e fpp_mode=prepare \
-#     -e oracle_environment=dev \
 #     -e fpp_gold_image=db_19_23_jan2026 \
-#     -e oracle_home_old=db_19_21 \
 #     -e oracle_home_new=db_19_23 \
 #     -e fpp_working_copy_name=db1923_dev_q1
 #
 #   # PATCH - run during the maintenance window:
-#   ansible-playbook playbooks/fpp_patch.yml \
+#   ansible-playbook playbooks/fpp_patch.yml -l dev \
 #     -e fpp_mode=patch \
-#     -e oracle_environment=dev \
 #     -e fpp_working_copy_name=db1923_dev_q1 \
-#     -e oracle_home_old=db_19_21 \
 #     -e oracle_home_new=db_19_23 \
 #     -e catalog_updater_oracle_home_new_version=19.23.0.0
 
@@ -66,13 +64,9 @@
         that:
           - fpp_mode is defined
           - fpp_mode in ['prepare', 'patch']
-          - oracle_environment is defined
-          - oracle_environment in ['dev', 'staging', 'prod']
-          - oracle_home_old is defined
           - oracle_home_new is defined
         fail_msg: >-
-          Required: fpp_mode (prepare|patch), oracle_environment,
-          oracle_home_old, oracle_home_new
+          Required: fpp_mode (prepare|patch), oracle_home_new
 
     - name: Validate prepare-specific inputs
       ansible.builtin.assert:

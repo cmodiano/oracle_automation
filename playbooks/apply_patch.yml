@@ -11,7 +11,6 @@
     - name: Validate inputs
       ansible.builtin.assert:
         that:
-          - oracle_environment is defined
           - oracle_home_name is defined
           - patch_id is defined
           - patch_base is defined

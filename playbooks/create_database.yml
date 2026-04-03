@@ -10,10 +10,8 @@
     - name: Validate inputs
       ansible.builtin.assert:
         that:
-          - oracle_environment is defined
-          - oracle_environment in ['dev', 'staging', 'prod']
           - target_db is defined
-        fail_msg: "Required: oracle_environment and target_db"
+        fail_msg: "Required: target_db"
 
   roles:
     - role: catalog_loader

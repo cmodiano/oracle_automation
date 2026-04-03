@@ -108,22 +108,26 @@ extra_vars:
 
 | Job Template Name | Playbook | Required Survey Vars | Optional Survey Vars |
 |---|---|---|---|
-| Oracle - Full Converge | `playbooks/converge.yml` | `oracle_environment` | `target_db` |
-| Oracle - Create Database | `playbooks/create_database.yml` | `oracle_environment`, `target_db` | |
-| Oracle - Manage PDBs | `playbooks/manage_pdbs.yml` | `oracle_environment` | `target_db` |
-| Oracle - Manage Schemas | `playbooks/manage_schemas.yml` | `oracle_environment` | `target_db`, `target_pdb` |
-| Oracle - Manage Tablespaces | `playbooks/manage_tablespaces.yml` | `oracle_environment` | `target_db`, `target_pdb` |
-| Oracle - Manage Parameters | `playbooks/manage_parameters.yml` | `oracle_environment` | `target_db` |
-| Oracle - Manage Services | `playbooks/manage_services.yml` | `oracle_environment` | `target_db` |
-| Oracle - Manage Directories | `playbooks/manage_directories.yml` | `oracle_environment` | `target_db` |
-| Oracle - Manage Scheduler | `playbooks/manage_scheduler.yml` | `oracle_environment` | `target_db` |
-| Oracle - FPP Patch | `playbooks/fpp_patch.yml` | `oracle_environment`, `fpp_gold_image`, `oracle_home_old`, `oracle_home_new` | `target_db`, `fpp_working_copy_name`, `catalog_updater_oracle_home_new_version` |
+| Oracle - Full Converge | `playbooks/converge.yml` | _(none)_ | `target_db` |
+| Oracle - Create Database | `playbooks/create_database.yml` | `target_db` | |
+| Oracle - Manage PDBs | `playbooks/manage_pdbs.yml` | _(none)_ | `target_db` |
+| Oracle - Manage Schemas | `playbooks/manage_schemas.yml` | _(none)_ | `target_db`, `target_pdb` |
+| Oracle - Manage Tablespaces | `playbooks/manage_tablespaces.yml` | _(none)_ | `target_db`, `target_pdb` |
+| Oracle - Manage Parameters | `playbooks/manage_parameters.yml` | _(none)_ | `target_db` |
+| Oracle - Manage Services | `playbooks/manage_services.yml` | _(none)_ | `target_db` |
+| Oracle - Manage Directories | `playbooks/manage_directories.yml` | _(none)_ | `target_db` |
+| Oracle - Manage Scheduler | `playbooks/manage_scheduler.yml` | _(none)_ | `target_db` |
+| Oracle - FPP Prepare | `playbooks/fpp_patch.yml` | `fpp_mode=prepare`, `fpp_gold_image`, `oracle_home_new` | `target_db`, `fpp_working_copy_name` |
+| Oracle - FPP Patch | `playbooks/fpp_patch.yml` | `fpp_mode=patch`, `fpp_working_copy_name`, `oracle_home_new` | `target_db`, `catalog_updater_oracle_home_new_version` |
 | Oracle - Register Home | `playbooks/register_oracle_home.yml` | `home_name`, `home_version`, `home_path` | `home_edition` |
-| Oracle - Apply Patch (OPatch) | `playbooks/apply_patch.yml` | `oracle_environment`, `oracle_home_name`, `patch_id`, `patch_base` | `rolling`, `opatchauto` |
-| Oracle - DG Switchover | `playbooks/dataguard_switchover.yml` | `oracle_environment`, `target_db`, `switchover_target` | |
-| Oracle - DG Failover | `playbooks/dataguard_failover.yml` | `oracle_environment`, `target_db`, `failover_target` | |
-| Oracle - Database Facts | `playbooks/database_facts.yml` | `oracle_environment` | `target_db` |
-| Oracle - Install Infra | `playbooks/install_infrastructure.yml` | `oracle_environment` | |
+| Oracle - Apply Patch (OPatch) | `playbooks/apply_patch.yml` | `oracle_home_name`, `patch_id`, `patch_base` | `rolling`, `opatchauto` |
+| Oracle - DG Switchover | `playbooks/dataguard_switchover.yml` | `target_db`, `switchover_target` | |
+| Oracle - DG Failover | `playbooks/dataguard_failover.yml` | `target_db`, `failover_target` | |
+| Oracle - Database Facts | `playbooks/database_facts.yml` | _(none)_ | `target_db` |
+| Oracle - Database Refresh | `playbooks/database_refresh.yml` | `target_db` | |
+| Oracle - Install Infra | `playbooks/install_infrastructure.yml` | _(none)_ | |
+
+**Note**: `oracle_environment` is set automatically by inventory group_vars based on host group membership (dev/staging/prod). It should NOT be passed as an extra_var — the AAP job template uses `--limit` to target the right hosts.
 
 All templates should use:
 - **Inventory**: Your Oracle inventory (sourced from this project's `inventory/` directory)

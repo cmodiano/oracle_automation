@@ -9,19 +9,16 @@ fpp_mode: ""
 # FPP server ORACLE_HOME (where rhpctl lives)
 fpp_server_home: ""
 
-# Gold image name to use as source for the new working copy
+# Gold image name to use as source for the new working copy (prepare mode)
 fpp_gold_image: ""
 
 # Name for the new working copy (FPP provisioned home)
-# If empty in prepare mode, auto-generated: {{ fpp_gold_image }}_{{ ansible_date_time.epoch }}
-# In patch mode, this MUST be set to the working copy created during prepare.
+# In prepare mode: if empty, auto-generated from gold image + timestamp.
+# In patch mode: MUST be set to the working copy created during prepare.
 fpp_working_copy_name: ""
 
-# Oracle home name (symbolic key) of the OLD home being replaced
-oracle_home_old: ""
-
-# Oracle home name (symbolic key) for the NEW home
-# Must match the entry that will be added to oracle_defaults.yml
+# Oracle home name (symbolic key) for the NEW home.
+# The current home of each database is read from the catalog automatically.
 oracle_home_new: ""
 
 # Run datapatch after moving databases (default: true)

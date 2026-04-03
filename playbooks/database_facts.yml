@@ -5,13 +5,6 @@
     - ibre5041.ansible_oracle_modules
   become: true
 
-  pre_tasks:
-    - name: Validate inputs
-      ansible.builtin.assert:
-        that:
-          - oracle_environment is defined
-          - oracle_environment in ['dev', 'staging', 'prod']
-
   roles:
     - role: catalog_loader
 

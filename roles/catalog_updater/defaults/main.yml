@@ -4,9 +4,6 @@
 # This role updates the repo to reflect state changes made by external
 # tools (FPP, manual patching, etc.) and commits the changes.
 
-# Old oracle_home symbolic name being replaced
-catalog_updater_oracle_home_old: "{{ oracle_home_old | default('') }}"
-
 # New oracle_home symbolic name
 catalog_updater_oracle_home_new: "{{ oracle_home_new | default('') }}"
 
@@ -19,7 +16,7 @@ catalog_updater_oracle_home_new_version: ""
 # New oracle_home edition (default: EE)
 catalog_updater_oracle_home_new_edition: EE
 
-# Environment that was patched
+# Environment that was patched (from inventory group_vars)
 catalog_updater_target_env: "{{ oracle_environment | default('') }}"
 
 # List of database names that were patched
