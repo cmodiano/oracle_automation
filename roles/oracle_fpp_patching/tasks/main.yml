@@ -2,28 +2,40 @@
 # oracle_fpp_patching - Orchestrate Oracle FPP (Fleet Patching and Provisioning)
 #
 # Two modes controlled by fpp_mode:
-#   prepare - Provision working copy from gold image, run pre-checks.
+#   prepare - Provision working copies from gold images, run pre-checks.
 #             Can be run days/weeks before the maintenance window.
-#   patch   - Move databases to the prepared working copy, datapatch,
+#   patch   - Move databases to prepared working copies, datapatch,
 #             post-checks. Run during the maintenance window.
 #
-# Inputs (extra_vars):
-#   - fpp_mode: prepare | patch
-#   - fpp_gold_image: FPP gold image name
-#   - oracle_home_old: symbolic name of the current oracle_home
-#   - oracle_home_new: symbolic name of the target oracle_home
-#   - fpp_working_copy_name: (required for patch mode) name from prepare phase
+# Supports multiple version families in parallel (19c, 21c, 26ai, etc.).
+# Each database's target home is resolved from its family via
+# oracle_home_targets dict in group_vars.
 #
 # Requires:
 #   - catalog_loader to have run first (provides oracle_databases)
+#   - oracle_home_targets dict in group_vars
 #   - rhpctl available on the target host (or FPP server)
 
 - name: Validate FPP mode
   ansible.builtin.assert:
     that:
       - fpp_mode in ['prepare', 'patch']
-    fail_msg: "fpp_mode must be 'prepare' or 'patch', got '{{ fpp_mode }}'"
+      - oracle_home_targets is defined
+    fail_msg: "fpp_mode must be 'prepare' or 'patch'. oracle_home_targets must be defined in group_vars."
   tags: [always]
+
+# Build the list of databases that need patching with their target homes.
+# Each database gets _target_home resolved via its family.
+- name: Identify databases needing patching
+  ansible.builtin.set_fact:
+    _fpp_databases: >-
+      {{ oracle_databases | default([])
+         | map('combine', {})
+         | list }}
+
+# Use a helper task to build the enriched list with target homes
+- name: Build patching plan
+  ansible.builtin.include_tasks: build_plan.yml
 
 - name: "Run FPP {{ fpp_mode }} phase"
   ansible.builtin.include_tasks: "{{ fpp_mode }}.yml"

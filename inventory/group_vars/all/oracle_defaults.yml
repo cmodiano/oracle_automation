@@ -32,31 +32,42 @@ oracle_os_groups:
 # after FPP patching. New entries are appended below existing ones.
 oracle_homes:
   db_19_21:
+    family: 19c
     version: "19.21.0.0"
     path: "{{ oracle_install_dir_prod }}/19.21.0.0"
     edition: EE
   db_19_23:
+    family: 19c
     version: "19.23.0.0"
     path: "{{ oracle_install_dir_prod }}/19.23.0.0"
     edition: EE
   db_21_3:
+    family: 21c
     version: "21.3.0.0"
     path: "{{ oracle_install_dir_prod }}/21.3.0.0"
     edition: EE
+  db_26ai_1:
+    family: 26ai
+    version: "26.1.0.0"
+    path: "{{ oracle_install_dir_prod }}/26.1.0.0"
+    edition: EE
 
-# Target oracle_home for patching convergence.
-# All databases should converge to this home. The FPP patching roles
-# automatically identify databases not yet on this home and patch them.
+# Target oracle_home per version family for patching convergence.
+# Each database's current oracle_home determines its family. The FPP
+# patching roles look up the target for that family and patch if needed.
 # When a new quarterly patch is released:
-#   1. Add the new home entry to oracle_homes above
-#   2. Update oracle_home_target to the new key
+#   1. Add the new home entry to oracle_homes above (with the correct family)
+#   2. Update the corresponding family target below
 #   3. Run fpp_patch.yml in prepare mode, then patch mode
-oracle_home_target: db_19_23
+oracle_home_targets:
+  19c: db_19_23
+  21c: db_21_3
+  26ai: db_26ai_1
 
 # FPP gold image naming convention.
 # The gold image name is derived from the target home key:
-#   {{ oracle_home_target }}{{ fpp_gold_image_suffix }}
-# Example: oracle_home_target=db_19_23, suffix=_gold → gold image = db_19_23_gold
+#   {{ target_home_name }}{{ fpp_gold_image_suffix }}
+# Example: target=db_19_23, suffix=_gold → gold image = db_19_23_gold
 fpp_gold_image_suffix: "_gold"
 
 # Default database options (minimalist baseline)

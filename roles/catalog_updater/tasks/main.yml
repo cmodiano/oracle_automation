@@ -1,53 +1,25 @@
 ---
-# catalog_updater - Update catalog files and oracle_defaults after patching.
+# catalog_updater - Update catalog files after patching.
 #
-# This role runs on localhost (delegate_to: localhost) and:
-#   1. Registers the new oracle_home in oracle_defaults.yml (if absent)
-#   2. Creates/updates overlay files for patched databases
-#   3. Commits and pushes changes to git
+# This role runs on localhost and:
+#   1. Creates/updates overlay files for each patched database
+#      (sets oracle_home to the family's target home)
+#   2. Commits and pushes changes to git
 #
-# Inputs:
-#   - catalog_updater_oracle_home_new: new home symbolic name
-#   - catalog_updater_oracle_home_new_path: filesystem path of new home
-#   - catalog_updater_target_env: environment that was patched (from group_vars)
-#   - catalog_updater_databases: list of db_names that were patched
+# Supports multiple families patched in a single run.
 
 - name: Validate catalog_updater inputs
   ansible.builtin.assert:
     that:
-      - catalog_updater_oracle_home_new | length > 0
-      - catalog_updater_oracle_home_new_path | length > 0
+      - catalog_updater_patched_targets | length > 0
       - catalog_updater_target_env in ['dev', 'staging', 'prod']
       - catalog_updater_databases | length > 0
     fail_msg: >-
-      catalog_updater requires oracle_home_new, oracle_home_new_path,
+      catalog_updater requires patched_targets (from FPP role),
       target_env, and a non-empty databases list.
   tags: [always]
 
-# --- Phase 1: Register new oracle_home in oracle_defaults.yml ---
-
-- name: Load current oracle_defaults.yml
-  ansible.builtin.include_vars:
-    file: "{{ catalog_updater_oracle_defaults_file }}"
-    name: _current_defaults
-
-- name: Check if new oracle_home already registered
-  ansible.builtin.set_fact:
-    _home_already_registered: "{{ catalog_updater_oracle_home_new in (_current_defaults.oracle_homes | default({})) }}"
-
-- name: Register new oracle_home in oracle_defaults.yml
-  ansible.builtin.blockinfile:
-    path: "{{ catalog_updater_oracle_defaults_file }}"
-    marker: "# {mark} ANSIBLE MANAGED - {{ catalog_updater_oracle_home_new }}"
-    insertafter: "^oracle_homes:"
-    block: |2
-        {{ catalog_updater_oracle_home_new }}:
-          version: "{{ catalog_updater_oracle_home_new_version | default(catalog_updater_oracle_home_new) }}"
-          path: "{{ catalog_updater_oracle_home_new_path }}"
-          edition: {{ catalog_updater_oracle_home_new_edition }}
-  when: not _home_already_registered
-
-# --- Phase 2: Update overlay files for patched databases ---
+# --- Update overlay files for each family ---
 
 - name: Ensure overlay directory exists
   ansible.builtin.file:
@@ -55,13 +27,18 @@
     state: directory
     mode: "0755"
 
-- name: Update or create overlay for each patched database
+- name: Update overlays for each patched family
   ansible.builtin.include_tasks: update_overlay.yml
-  loop: "{{ catalog_updater_databases }}"
+  loop: "{{ catalog_updater_patched_targets | dict2items }}"
   loop_control:
-    loop_var: _db_name
+    loop_var: _family_result
+    label: "{{ _family_result.key }}"
+  vars:
+    _family: "{{ _family_result.key }}"
+    _target_home: "{{ _family_result.value.target_home }}"
+    _family_databases: "{{ _family_result.value.databases }}"
 
-# --- Phase 3: Git commit and push ---
+# --- Git commit and push ---
 
 - name: Check for changes
   ansible.builtin.command:
@@ -77,16 +54,21 @@
   block:
     - name: Stage changed files
       ansible.builtin.command:
-        cmd: git add inventory/group_vars/all/oracle_defaults.yml databases/overlays/
+        cmd: git add databases/overlays/
         chdir: "{{ catalog_updater_repo_root }}"
+
+    - name: Build commit message
+      ansible.builtin.set_fact:
+        _commit_msg: >-
+          auto: patch {{ catalog_updater_target_env }} databases
+          {% for family, result in catalog_updater_patched_targets.items() %}
+
+          {{ family }}: {{ result.databases | join(', ') }} → {{ result.target_home }}
+          {% endfor %}
 
     - name: Commit changes
       ansible.builtin.command:
-        cmd: >-
-          git commit -m "auto: patch {{ catalog_updater_target_env }} databases
-          to {{ catalog_updater_oracle_home_new }}
-
-          Databases: {{ catalog_updater_databases | join(', ') }}"
+        cmd: "git commit -m '{{ _commit_msg }}'"
         chdir: "{{ catalog_updater_repo_root }}"
 
 - name: Push changes

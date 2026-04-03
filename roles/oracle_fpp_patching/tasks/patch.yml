@@ -1,121 +1,41 @@
 ---
 # FPP Patch phase - Run DURING the maintenance window.
 #
-# This phase:
-#   1. Validates the working copy exists (provisioned during prepare)
-#   2. Identifies databases not yet on oracle_home_target
-#   3. Moves each database to the prepared working copy
-#   4. Runs datapatch on moved databases
-#   5. Verifies databases are running on the new home
-#   6. Exports facts for catalog_updater
-#
-# Requires: fpp_working_copy_name set to the name from prepare phase.
+# Iterates over each version family that needs patching:
+#   1. Validates the working copy exists (from prepare phase)
+#   2. Moves databases to the prepared working copy
+#   3. Runs datapatch
+#   4. Verifies databases on the new home
+#   5. Exports facts for catalog_updater
 
 - name: Validate patch inputs
   ansible.builtin.assert:
     that:
-      - fpp_working_copy_name | length > 0
-      - oracle_home_target | length > 0
+      - (fpp_working_copies is defined and fpp_working_copies | length > 0) or
+        (fpp_working_copy_name is defined and fpp_working_copy_name | length > 0)
     fail_msg: >-
-      FPP patch requires fpp_working_copy_name (from prepare phase).
-      oracle_home_target comes from group_vars.
+      Patch mode requires fpp_working_copies dict (per family) or
+      fpp_working_copy_name (single family). These come from the prepare phase.
 
-- name: Identify databases NOT yet on target oracle_home
+# Build fpp_working_copies from single fpp_working_copy_name if needed
+- name: Normalize working copies to per-family dict
   ansible.builtin.set_fact:
-    _fpp_databases: >-
-      {{ oracle_databases | default([])
-         | rejectattr('oracle_home', 'equalto', oracle_home_target)
-         | list }}
+    _fpp_working_copies: >-
+      {{ fpp_working_copies | default(
+           dict(_fpp_families | map('community.general.dict_kv', fpp_working_copy_name))
+         ) }}
+  when: _fpp_families | length > 0
 
-- name: Display databases to be moved
-  ansible.builtin.debug:
-    msg: >-
-      Will move {{ _fpp_databases | length }} database(s) to
-      working copy {{ fpp_working_copy_name }} ({{ oracle_home_target }}):
-      {{ _fpp_databases | map(attribute='db_name') | join(', ') }}
-      (from homes: {{ _fpp_databases | map(attribute='oracle_home') | unique | join(', ') }})
-
-- name: Skip host if all databases already on target
-  ansible.builtin.meta: end_host
-  when: _fpp_databases | length == 0
-
-# --- Validate working copy is ready ---
-
-- name: "FPP: Verify working copy {{ fpp_working_copy_name }} exists"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl query workingcopy
-      -workingcopy {{ fpp_working_copy_name }}
-      {{ fpp_rhpctl_extra_args }}
-  register: _fpp_wc_info
-  changed_when: false
-  become_user: "{{ oracle_os_user }}"
-
-- name: Extract new oracle_home path from working copy
-  ansible.builtin.set_fact:
-    _fpp_new_home_path: "{{ _fpp_wc_info.stdout | regex_search('Home Path:\\s*(.+)', '\\1') | first | trim }}"
-
-- name: Report new oracle_home path
-  ansible.builtin.debug:
-    msg: "Moving databases to: {{ _fpp_new_home_path }}"
-
-# --- Move databases ---
-
-- name: "FPP: Move databases to working copy {{ fpp_working_copy_name }}"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl move database
-      -sourcewc {{ _db.oracle_home }}
-      -destwc {{ fpp_working_copy_name }}
-      -dbname {{ _db.db_name }}
-      {{ fpp_rhpctl_extra_args }}
-    timeout: "{{ fpp_move_timeout }}"
-  loop: "{{ _fpp_databases }}"
+- name: "Patch family: {{ _family }}"
+  ansible.builtin.include_tasks: patch_one_family.yml
+  loop: "{{ _fpp_families }}"
   loop_control:
-    loop_var: _db
-    label: "{{ _db.db_name }} ({{ _db.oracle_home }} → {{ oracle_home_target }})"
-  register: _fpp_move_results
-  become_user: "{{ oracle_os_user }}"
-  when: _db._is_first_node
-
-# --- Datapatch ---
-
-- name: "Run datapatch for moved databases"
-  ibre5041.ansible_oracle_modules.oracle_datapatch:
-    oracle_home: "{{ _fpp_new_home_path }}"
-    db_name: "{{ _db.db_name }}"
-  loop: "{{ _fpp_databases }}"
-  loop_control:
-    loop_var: _db
-    label: "{{ _db.db_name }}"
-  become_user: "{{ oracle_os_user }}"
-  when:
-    - fpp_run_datapatch | bool
-    - _db._is_first_node
-
-# --- Post-checks ---
-
-- name: "Verify databases are running on new oracle_home"
-  ibre5041.ansible_oracle_modules.oracle_facts:
-    mode: sysdba
-    hostname: localhost
-    service_name: "{{ _db.db_name }}"
-    oracle_home: "{{ _fpp_new_home_path }}"
-    database: true
-    instance: true
-    patch_level: true
-  loop: "{{ _fpp_databases }}"
-  loop_control:
-    loop_var: _db
-    label: "{{ _db.db_name }}"
-  register: _fpp_post_facts
-  become_user: "{{ oracle_os_user }}"
-  when: _db._is_first_node
+    loop_var: _family
 
 # --- Export facts for catalog_updater ---
 
 - name: Set patching result facts
   ansible.builtin.set_fact:
-    fpp_patched_databases: "{{ _fpp_databases | map(attribute='db_name') | list }}"
-    fpp_new_home_path: "{{ _fpp_new_home_path }}"
+    fpp_patched_databases: "{{ _fpp_patch_plan | map(attribute='db') | map(attribute='db_name') | list }}"
+    fpp_patched_targets: "{{ _fpp_patched_targets | default({}) }}"
     cacheable: true

@@ -3,24 +3,29 @@
 #
 # This role updates the repo to reflect state changes made by external
 # tools (FPP, manual patching, etc.) and commits the changes.
+# Supports multiple version families patched in a single run.
 
-# New oracle_home symbolic name (from group_vars)
-catalog_updater_oracle_home_new: "{{ oracle_home_target | default('') }}"
+# Per-family patching results (auto-populated by oracle_fpp_patching)
+# Dict keyed by family, each value has: target_home, home_path, databases
+# Example:
+#   fpp_patched_targets:
+#     19c:
+#       target_home: db_19_23
+#       home_path: /oracle/u01/product/19.23.0.0
+#       databases: [APPDB1, APPDB2]
+#     26ai:
+#       target_home: db_26ai_1
+#       home_path: /oracle/u01/product/26.1.0.0
+#       databases: [AIDB1]
+catalog_updater_patched_targets: "{{ fpp_patched_targets | default({}) }}"
 
-# New oracle_home filesystem path (set by oracle_fpp_patching)
-catalog_updater_oracle_home_new_path: "{{ fpp_new_home_path | default('') }}"
-
-# New oracle_home version string (e.g., "19.23.0.0")
-catalog_updater_oracle_home_new_version: ""
-
-# New oracle_home edition (default: EE)
-catalog_updater_oracle_home_new_edition: EE
+# Target home targets dict (from group_vars)
+catalog_updater_home_targets: "{{ oracle_home_targets | default({}) }}"
 
 # Environment that was patched (from inventory group_vars)
 catalog_updater_target_env: "{{ oracle_environment | default('') }}"
 
-# List of database names that were patched
-# (auto-populated by oracle_fpp_patching, or pass manually)
+# List of all patched database names (auto-populated)
 catalog_updater_databases: "{{ fpp_patched_databases | default([]) }}"
 
 # Path to the repo root

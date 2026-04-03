@@ -1,35 +1,12 @@
 ---
-# Update or create an overlay file for a single database.
-# Called from main.yml with loop_var: _db_name
+# Update overlay files for databases in one patched family.
+# Called from main.yml with:
+#   _family: version family (e.g., "19c")
+#   _target_home: target oracle_home name (e.g., "db_19_23")
+#   _family_databases: list of database names patched in this family
 
-- name: "Check if overlay exists: {{ _db_name }}"
-  ansible.builtin.stat:
-    path: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
-  register: _overlay_stat
-
-- name: "Load existing overlay: {{ _db_name }}"
-  ansible.builtin.include_vars:
-    file: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
-    name: _existing_overlay
-  when: _overlay_stat.stat.exists
-
-- name: "Set empty overlay when none exists: {{ _db_name }}"
-  ansible.builtin.set_fact:
-    _existing_overlay: {}
-  when: not _overlay_stat.stat.exists
-
-- name: "Merge oracle_home into overlay: {{ _db_name }}"
-  ansible.builtin.set_fact:
-    _updated_overlay: >-
-      {{ _existing_overlay | combine({'oracle_home': catalog_updater_oracle_home_new}) }}
-
-- name: "Write overlay: {{ _db_name }}"
-  ansible.builtin.copy:
-    content: |
-      ---
-      # Auto-updated by catalog_updater after FPP patching
-      # Environment: {{ catalog_updater_target_env }}
-      # Patched: {{ ansible_date_time.iso8601 | default('unknown') }}
-      {{ _updated_overlay | to_nice_yaml(indent=2) }}
-    dest: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
-    mode: "0644"
+- name: "{{ _family }}: Update overlay for {{ _db_name }}"
+  ansible.builtin.include_tasks: update_one_overlay.yml
+  loop: "{{ _family_databases }}"
+  loop_control:
+    loop_var: _db_name

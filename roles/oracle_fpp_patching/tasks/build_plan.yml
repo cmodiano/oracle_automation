@@ -1,0 +1,54 @@
+---
+# Build the patching plan: for each database, resolve its target home
+# based on its version family, and filter to only those needing patching.
+#
+# Output fact: _fpp_patch_plan - list of dicts with:
+#   - db: the full database dict from oracle_databases
+#   - family: version family (19c, 21c, 26ai, ...)
+#   - target_home: target oracle_home name for this family
+#   - gold_image: FPP gold image name for this target
+
+- name: Build per-database patching plan
+  ansible.builtin.set_fact:
+    _fpp_patch_plan: >-
+      {{ _fpp_patch_plan | default([]) + [
+           {
+             'db': item,
+             'family': item.oracle_home | resolve_home_family(oracle_homes),
+             'target_home': item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets),
+             'gold_image': (fpp_gold_images | default({}))[item.oracle_home | resolve_home_family(oracle_homes)]
+                           | default(
+                               (item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets))
+                               ~ (fpp_gold_image_suffix | default('_gold'))
+                             ),
+           }
+         ] }}
+  loop: "{{ oracle_databases | default([]) }}"
+  loop_control:
+    label: "{{ item.db_name }}"
+  when: item.oracle_home != (item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets))
+
+- name: Default empty plan if nothing to patch
+  ansible.builtin.set_fact:
+    _fpp_patch_plan: []
+  when: _fpp_patch_plan is not defined
+
+- name: Identify families to patch
+  ansible.builtin.set_fact:
+    _fpp_families: "{{ _fpp_patch_plan | map(attribute='family') | unique | list }}"
+
+- name: Display patching plan
+  ansible.builtin.debug:
+    msg: |
+      Patching plan for {{ inventory_hostname }}:
+      {% for family in _fpp_families %}
+        Family {{ family }}:
+          Target: {{ oracle_home_targets[family] }}
+          Databases: {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
+          Current homes: {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='oracle_home') | unique | join(', ') }}
+      {% endfor %}
+  when: _fpp_patch_plan | length > 0
+
+- name: Skip host if nothing to patch
+  ansible.builtin.meta: end_host
+  when: _fpp_patch_plan | length == 0

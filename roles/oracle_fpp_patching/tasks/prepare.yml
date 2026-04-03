@@ -1,138 +1,40 @@
 ---
 # FPP Prepare phase - Run BEFORE the maintenance window.
 #
-# This phase:
-#   1. Identifies databases not yet on oracle_home_target
-#   2. Validates the FPP gold image exists
-#   3. Provisions a new working copy (installs the new Oracle Home)
-#   4. Runs pre-checks (patch level verification)
-#   5. Reports the working copy name for the patch phase
+# Iterates over each version family that needs patching:
+#   1. Validates the FPP gold image exists
+#   2. Provisions a working copy (installs the new Oracle Home)
+#   3. Runs pre-checks (patch level verification)
+#   4. Reports the working copy names for the patch phase
 #
 # No database downtime is incurred during this phase.
 
-- name: Validate prepare inputs
-  ansible.builtin.assert:
-    that:
-      - oracle_home_target | length > 0
-      - fpp_gold_image | length > 0
-      - oracle_homes[oracle_home_target] is defined
-    fail_msg: >-
-      FPP prepare requires oracle_home_target (from group_vars) to be set
-      and registered in oracle_homes dict.
-      Gold image will be derived as: {{ oracle_home_target }}{{ fpp_gold_image_suffix | default('_gold') }}
+- name: "Prepare family: {{ _family }}"
+  ansible.builtin.include_tasks: prepare_one_family.yml
+  loop: "{{ _fpp_families }}"
+  loop_control:
+    loop_var: _family
 
-- name: Identify databases NOT yet on target oracle_home
-  ansible.builtin.set_fact:
-    _fpp_databases: >-
-      {{ oracle_databases | default([])
-         | rejectattr('oracle_home', 'equalto', oracle_home_target)
-         | list }}
-
-- name: Display databases that will be patched
-  ansible.builtin.debug:
-    msg: >-
-      Found {{ _fpp_databases | length }} database(s) not yet on {{ oracle_home_target }}:
-      {{ _fpp_databases | map(attribute='db_name') | join(', ') }}
-      (current homes: {{ _fpp_databases | map(attribute='oracle_home') | unique | join(', ') }})
-
-- name: Skip host if all databases already on target
-  ansible.builtin.meta: end_host
-  when: _fpp_databases | length == 0
-
-# --- Verify gold image ---
-
-- name: "FPP: Query gold image {{ fpp_gold_image }}"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl query image
-      -image {{ fpp_gold_image }}
-      {{ fpp_rhpctl_extra_args }}
-  register: _fpp_image_query
-  changed_when: false
-  become_user: "{{ oracle_os_user }}"
-
-- name: Validate gold image exists
-  ansible.builtin.assert:
-    that: _fpp_image_query.rc == 0
-    fail_msg: "FPP gold image '{{ fpp_gold_image }}' not found: {{ _fpp_image_query.stderr }}"
-
-# --- Provision working copy ---
-
-- name: Set working copy name
-  ansible.builtin.set_fact:
-    _fpp_wc_name: "{{ fpp_working_copy_name | default(oracle_home_target ~ '_' ~ inventory_hostname_short | default(inventory_hostname), true) }}"
-
-- name: "FPP: Check if working copy {{ _fpp_wc_name }} already exists"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl query workingcopy
-      -workingcopy {{ _fpp_wc_name }}
-      {{ fpp_rhpctl_extra_args }}
-  register: _fpp_wc_check
-  changed_when: false
-  failed_when: false
-  become_user: "{{ oracle_os_user }}"
-
-- name: "FPP: Add working copy {{ _fpp_wc_name }} from {{ fpp_gold_image }}"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl add workingcopy
-      -workingcopy {{ _fpp_wc_name }}
-      -image {{ fpp_gold_image }}
-      -node {{ inventory_hostname }}
-      {{ fpp_rhpctl_extra_args }}
-    timeout: "{{ fpp_provision_timeout }}"
-  register: _fpp_provision
-  become_user: "{{ oracle_os_user }}"
-  when: _fpp_wc_check.rc != 0
-
-# --- Query working copy details ---
-
-- name: "FPP: Query working copy path"
-  ansible.builtin.command:
-    cmd: >-
-      {{ fpp_server_home }}/bin/rhpctl query workingcopy
-      -workingcopy {{ _fpp_wc_name }}
-      {{ fpp_rhpctl_extra_args }}
-  register: _fpp_wc_info
-  changed_when: false
-  become_user: "{{ oracle_os_user }}"
-
-- name: Extract new oracle_home path from working copy
-  ansible.builtin.set_fact:
-    _fpp_new_home_path: "{{ _fpp_wc_info.stdout | regex_search('Home Path:\\s*(.+)', '\\1') | first | trim }}"
-
-# --- Pre-checks ---
-
-- name: "Verify new oracle_home binaries"
-  ansible.builtin.command:
-    cmd: "{{ _fpp_new_home_path }}/OPatch/opatch lspatches"
-  register: _fpp_opatch_check
-  changed_when: false
-  become_user: "{{ oracle_os_user }}"
-
-- name: Display patch level of new working copy
-  ansible.builtin.debug:
-    msg: "{{ _fpp_opatch_check.stdout_lines }}"
-
-# --- Report for patch phase ---
+# --- Final summary ---
 
 - name: "PREPARE COMPLETE - Summary"
   ansible.builtin.debug:
     msg: |
       ============================================================
-      FPP PREPARE COMPLETE
+      FPP PREPARE COMPLETE - {{ inventory_hostname }}
       ============================================================
-      Working copy name:  {{ _fpp_wc_name }}
-      New home path:      {{ _fpp_new_home_path }}
-      Gold image:         {{ fpp_gold_image }}
-      Target home:        {{ oracle_home_target }}
-      Target databases:   {{ _fpp_databases | map(attribute='db_name') | join(', ') }}
-      Current homes:      {{ _fpp_databases | map(attribute='oracle_home') | unique | join(', ') }}
-      Host:               {{ inventory_hostname }}
+      {% for family in _fpp_families %}
+      Family {{ family }}:
+        Working copy:  {{ _fpp_working_copies[family] }}
+        Target home:   {{ oracle_home_targets[family] }}
+        Gold image:    {{ (_fpp_patch_plan | selectattr('family', 'equalto', family) | first).gold_image }}
+        Databases:     {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
+      {% endfor %}
 
       To proceed with patching during the maintenance window, run:
         ansible-playbook playbooks/fpp_patch.yml -l {{ oracle_environment }} \
           -e fpp_mode=patch \
-          -e fpp_working_copy_name={{ _fpp_wc_name }}
+      {% for family in _fpp_families %}
+          -e '{{ "fpp_working_copies={" }}{% for f in _fpp_families %}"{{ f }}":"{{ _fpp_working_copies[f] }}"{% if not loop.last %},{% endif %}{% endfor %}{{ "}" }}'
+      {% endfor %}
       ============================================================

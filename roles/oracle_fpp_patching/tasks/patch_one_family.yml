@@ -1,0 +1,94 @@
+---
+# Patch one version family: move databases to working copy.
+# Called from patch.yml with loop_var: _family
+
+- name: "{{ _family }}: Resolve target and working copy"
+  ansible.builtin.set_fact:
+    _target_home: "{{ oracle_home_targets[_family] }}"
+    _wc_name: "{{ _fpp_working_copies[_family] }}"
+    _family_dbs: >-
+      {{ _fpp_patch_plan
+         | selectattr('family', 'equalto', _family)
+         | map(attribute='db') | list }}
+
+- name: "{{ _family }}: Verify working copy {{ _wc_name }} exists"
+  ansible.builtin.command:
+    cmd: >-
+      {{ fpp_server_home }}/bin/rhpctl query workingcopy
+      -workingcopy {{ _wc_name }}
+      {{ fpp_rhpctl_extra_args }}
+  register: _fpp_wc_info
+  changed_when: false
+  become_user: "{{ oracle_os_user }}"
+
+- name: "{{ _family }}: Extract oracle_home path"
+  ansible.builtin.set_fact:
+    _new_home_path: "{{ _fpp_wc_info.stdout | regex_search('Home Path:\\s*(.+)', '\\1') | first | trim }}"
+
+- name: "{{ _family }}: Moving {{ _family_dbs | length }} database(s) to {{ _new_home_path }}"
+  ansible.builtin.debug:
+    msg: "{{ _family_dbs | map(attribute='db_name') | join(', ') }}"
+
+# --- Move databases ---
+
+- name: "{{ _family }}: Move databases to {{ _wc_name }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ fpp_server_home }}/bin/rhpctl move database
+      -sourcewc {{ _db.oracle_home }}
+      -destwc {{ _wc_name }}
+      -dbname {{ _db.db_name }}
+      {{ fpp_rhpctl_extra_args }}
+    timeout: "{{ fpp_move_timeout }}"
+  loop: "{{ _family_dbs }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }} ({{ _db.oracle_home }} → {{ _target_home }})"
+  become_user: "{{ oracle_os_user }}"
+  when: _db._is_first_node
+
+# --- Datapatch ---
+
+- name: "{{ _family }}: Run datapatch"
+  ibre5041.ansible_oracle_modules.oracle_datapatch:
+    oracle_home: "{{ _new_home_path }}"
+    db_name: "{{ _db.db_name }}"
+  loop: "{{ _family_dbs }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  become_user: "{{ oracle_os_user }}"
+  when:
+    - fpp_run_datapatch | bool
+    - _db._is_first_node
+
+# --- Post-checks ---
+
+- name: "{{ _family }}: Verify databases on new home"
+  ibre5041.ansible_oracle_modules.oracle_facts:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _new_home_path }}"
+    database: true
+    instance: true
+    patch_level: true
+  loop: "{{ _family_dbs }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  become_user: "{{ oracle_os_user }}"
+  when: _db._is_first_node
+
+# --- Register results ---
+
+- name: "{{ _family }}: Register patching results"
+  ansible.builtin.set_fact:
+    _fpp_patched_targets: >-
+      {{ _fpp_patched_targets | default({}) | combine({
+           _family: {
+             'target_home': _target_home,
+             'home_path': _new_home_path,
+             'databases': _family_dbs | map(attribute='db_name') | list
+           }
+         }) }}
