@@ -1,25 +1,42 @@
 ---
-# catalog_updater - Update catalog files after patching.
+# catalog_updater - Set desired oracle_home in database overlay files.
 #
 # This role runs on localhost and:
-#   1. Creates/updates overlay files for each patched database
-#      (sets oracle_home to the family's target home)
+#   1. Creates/updates overlay files to set oracle_home for each database
 #   2. Commits and pushes changes to git
 #
-# Supports multiple families patched in a single run.
+# Used BEFORE patching to declare desired state. The FPP role then
+# converges actual → desired.
 
 - name: Validate catalog_updater inputs
   ansible.builtin.assert:
     that:
-      - catalog_updater_patched_targets | length > 0
+      - catalog_updater_updates | length > 0
       - catalog_updater_target_env in ['dev', 'staging', 'prod']
-      - catalog_updater_databases | length > 0
     fail_msg: >-
-      catalog_updater requires patched_targets (from FPP role),
-      target_env, and a non-empty databases list.
+      catalog_updater requires: catalog_updater_updates (list of
+      {db_name, oracle_home} dicts) and catalog_updater_target_env.
   tags: [always]
 
-# --- Update overlay files for each family ---
+# --- Validate that all referenced oracle_homes exist ---
+
+- name: Load oracle_defaults to validate homes
+  ansible.builtin.include_vars:
+    file: "{{ catalog_updater_oracle_defaults_file }}"
+    name: _oracle_defaults
+
+- name: Validate oracle_home references
+  ansible.builtin.assert:
+    that:
+      - item.oracle_home in _oracle_defaults.oracle_homes
+    fail_msg: >-
+      Oracle home '{{ item.oracle_home }}' not found in oracle_defaults.yml.
+      Available: {{ _oracle_defaults.oracle_homes.keys() | list }}
+  loop: "{{ catalog_updater_updates }}"
+  loop_control:
+    label: "{{ item.db_name }} → {{ item.oracle_home }}"
+
+# --- Update overlay files ---
 
 - name: Ensure overlay directory exists
   ansible.builtin.file:
@@ -27,16 +44,12 @@
     state: directory
     mode: "0755"
 
-- name: Update overlays for each patched family
-  ansible.builtin.include_tasks: update_overlay.yml
-  loop: "{{ catalog_updater_patched_targets | dict2items }}"
+- name: Update overlay for each database
+  ansible.builtin.include_tasks: update_one_overlay.yml
+  loop: "{{ catalog_updater_updates }}"
   loop_control:
-    loop_var: _family_result
-    label: "{{ _family_result.key }}"
-  vars:
-    _family: "{{ _family_result.key }}"
-    _target_home: "{{ _family_result.value.target_home }}"
-    _family_databases: "{{ _family_result.value.databases }}"
+    loop_var: _update
+    label: "{{ _update.db_name }} → {{ _update.oracle_home }}"
 
 # --- Git commit and push ---
 
@@ -60,10 +73,10 @@
     - name: Build commit message
       ansible.builtin.set_fact:
         _commit_msg: >-
-          auto: patch {{ catalog_updater_target_env }} databases
-          {% for family, result in catalog_updater_patched_targets.items() %}
+          auto: set desired oracle_home for {{ catalog_updater_target_env }}
+          {% for u in catalog_updater_updates %}
 
-          {{ family }}: {{ result.databases | join(', ') }} → {{ result.target_home }}
+          {{ u.db_name }} → {{ u.oracle_home }}
           {% endfor %}
 
     - name: Commit changes

@@ -1,54 +1,81 @@
 ---
-# Build the patching plan: for each database, resolve its target home
-# based on its version family, and filter to only those needing patching.
+# Build the patching plan: query actual running homes, compare with
+# the declared desired home from catalog, identify databases to patch.
 #
-# Output fact: _fpp_patch_plan - list of dicts with:
-#   - db: the full database dict from oracle_databases
-#   - family: version family (19c, 21c, 26ai, ...)
-#   - target_home: target oracle_home name for this family
-#   - gold_image: FPP gold image name for this target
+# Output facts:
+#   _fpp_patch_plan   - list of dicts with: db, desired_home, desired_home_path,
+#                       actual_home_path, gold_image
+#   _fpp_target_homes - unique list of desired oracle_home names to provision
 
-- name: Build per-database patching plan
+# --- Query actual running Oracle Home for each database ---
+
+- name: Query actual Oracle Home from oratab
+  ansible.builtin.shell: >-
+    grep -s "^{{ item.db_name }}:" /etc/oratab | head -1 | cut -d: -f2
+  loop: "{{ oracle_databases | default([]) }}"
+  loop_control:
+    label: "{{ item.db_name }}"
+  register: _fpp_actual_home_results
+  changed_when: false
+  failed_when: false
+  become_user: "{{ oracle_os_user }}"
+  when: item._is_first_node | default(true)
+
+# --- Build the plan: actual != desired means patching needed ---
+
+- name: Build patch plan from actual vs desired
   ansible.builtin.set_fact:
     _fpp_patch_plan: >-
       {{ _fpp_patch_plan | default([]) + [
            {
-             'db': item,
-             'family': item.oracle_home | resolve_home_family(oracle_homes),
-             'target_home': item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets),
-             'gold_image': (fpp_gold_images | default({}))[item.oracle_home | resolve_home_family(oracle_homes)]
-                           | default(
-                               (item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets))
-                               ~ (fpp_gold_image_suffix | default('_gold'))
-                             ),
+             'db': item.item,
+             'desired_home': item.item.oracle_home,
+             'desired_home_path': item.item._oracle_home_path,
+             'actual_home_path': item.stdout | trim,
+             'gold_image': (fpp_gold_images | default({}))[item.item.oracle_home]
+                           | default(item.item.oracle_home ~ fpp_gold_image_suffix),
            }
          ] }}
-  loop: "{{ oracle_databases | default([]) }}"
+  loop: "{{ _fpp_actual_home_results.results | default([]) }}"
   loop_control:
-    label: "{{ item.db_name }}"
-  when: item.oracle_home != (item.oracle_home | resolve_target_home(oracle_homes, oracle_home_targets))
+    label: "{{ item.item.db_name | default('unknown') }}"
+  when:
+    - item is not skipped
+    - item.stdout is defined
+    - item.stdout | trim | length > 0
+    - item.stdout | trim != item.item._oracle_home_path
 
 - name: Default empty plan if nothing to patch
   ansible.builtin.set_fact:
-    _fpp_patch_plan: []
-  when: _fpp_patch_plan is not defined
+    _fpp_patch_plan: "{{ _fpp_patch_plan | default([]) }}"
 
-- name: Identify families to patch
+# --- Identify unique target homes ---
+
+- name: Identify target homes to provision
   ansible.builtin.set_fact:
-    _fpp_families: "{{ _fpp_patch_plan | map(attribute='family') | unique | list }}"
+    _fpp_target_homes: "{{ _fpp_patch_plan | map(attribute='desired_home') | unique | list }}"
+
+# --- Display plan ---
 
 - name: Display patching plan
   ansible.builtin.debug:
     msg: |
       Patching plan for {{ inventory_hostname }}:
-      {% for family in _fpp_families %}
-        Family {{ family }}:
-          Target: {{ oracle_home_targets[family] }}
-          Databases: {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
-          Current homes: {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='oracle_home') | unique | join(', ') }}
+      {% for home in _fpp_target_homes %}
+        Target home: {{ home }} ({{ oracle_homes[home].version }})
+          Gold image: {{ (_fpp_patch_plan | selectattr('desired_home', 'equalto', home) | first).gold_image }}
+          Databases:
+          {% for entry in _fpp_patch_plan | selectattr('desired_home', 'equalto', home) %}
+            - {{ entry.db.db_name }}: {{ entry.actual_home_path }} → {{ entry.desired_home_path }}
+          {% endfor %}
       {% endfor %}
   when: _fpp_patch_plan | length > 0
 
 - name: Skip host if nothing to patch
+  ansible.builtin.debug:
+    msg: "All databases on {{ inventory_hostname }} are already on their desired Oracle Home. Nothing to do."
+  when: _fpp_patch_plan | length == 0
+
+- name: End host if nothing to patch
   ansible.builtin.meta: end_host
   when: _fpp_patch_plan | length == 0

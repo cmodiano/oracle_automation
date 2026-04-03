@@ -53,24 +53,27 @@ oracle_homes:
     edition: EE
 
 # FPP gold image naming convention.
-# The gold image name is derived from the target home key:
-#   {{ target_home_name }}{{ fpp_gold_image_suffix }}
-# Example: target=db_19_23, suffix=_gold → gold image = db_19_23_gold
+# The gold image name is derived from the oracle_home key:
+#   {{ oracle_home_name }}{{ fpp_gold_image_suffix }}
+# Example: oracle_home=db_19_23, suffix=_gold → gold image = db_19_23_gold
 fpp_gold_image_suffix: "_gold"
 
-# Patching targets (oracle_home_targets) are defined PER ENVIRONMENT
-# in group_vars/{dev,staging,prod}.yml, NOT here.
+# Patching convergence:
+# Each database declares its desired oracle_home in its catalog file
+# (databases/<DB>.yml) or per-environment overlay (databases/overlays/<env>/<DB>.yml).
+# The FPP patching role converges each database to its declared oracle_home.
 #
-# Progression rule: prod can only target the version already validated
-# in staging/certification. When staging reaches a new version, prod's
-# target can be advanced to match.
+# Progression is per-database: prod APPDB1 can be at 19.29 while prod HRDB
+# is still at 19.28, depending on certification status of each.
 #
-# Example patch cycle for 19c quarterly RU:
+# Example patch cycle for APPDB1 with 19c quarterly RU (19.30):
 #   1. Add db_19_30 to oracle_homes above
-#   2. Set oracle_home_targets.19c: db_19_30 in dev.yml and staging.yml
-#   3. Run fpp_patch on dev, then staging
-#   4. After staging validation, set oracle_home_targets.19c: db_19_30 in prod.yml
-#   5. Run fpp_patch on prod
+#   2. Set oracle_home: db_19_30 in overlays/dev/APPDB1.yml
+#   3. Run fpp_patch on dev → APPDB1 moves to 19.30
+#   4. Set oracle_home: db_19_30 in overlays/staging/APPDB1.yml
+#   5. Run fpp_patch on staging → APPDB1 certified at 19.30
+#   6. Set oracle_home: db_19_30 in overlays/prod/APPDB1.yml
+#   7. Run fpp_patch on prod → APPDB1 moves to 19.30
 
 # Default database options (minimalist baseline)
 oracle_db_options_default:

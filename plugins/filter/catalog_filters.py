@@ -12,7 +12,6 @@ class FilterModule:
             'catalog_for_host': self.catalog_for_host,
             'resolve_oracle_home': self.resolve_oracle_home,
             'resolve_home_family': self.resolve_home_family,
-            'resolve_target_home': self.resolve_target_home,
         }
 
     @staticmethod
@@ -96,15 +95,3 @@ class FilterModule:
             )
         return home['family']
 
-    @staticmethod
-    def resolve_target_home(home_name, oracle_homes, oracle_home_targets):
-        """Resolve the target home for a given oracle_home based on its family.
-
-        Looks up the family of home_name, then finds the target home for
-        that family in oracle_home_targets.
-
-        Returns the target home name (e.g., 'db_19_23'), or the current
-        home_name if no target is defined for its family.
-        """
-        family = FilterModule.resolve_home_family(home_name, oracle_homes)
-        return oracle_home_targets.get(family, home_name)

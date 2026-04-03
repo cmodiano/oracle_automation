@@ -1,32 +1,29 @@
 ---
-# catalog_updater - Defaults for automatic catalog updates after patching.
+# catalog_updater - Set desired oracle_home in database overlays.
 #
-# This role updates the repo to reflect state changes made by external
-# tools (FPP, manual patching, etc.) and commits the changes.
-# Supports multiple version families patched in a single run.
+# This role is a standalone utility used by external planning systems
+# (or manually by DBAs) to declare which oracle_home a database should
+# run on, per environment. It updates overlay files and commits/pushes.
+#
+# In the desired-state model, overlays are set BEFORE patching.
+# The FPP patching role then converges actual → desired.
+#
+# Example workflow:
+#   1. DBA/planner runs catalog_updater to set oracle_home: db_19_23
+#      in overlays/dev/APPDB1.yml
+#   2. DBA runs fpp_patch.yml → FPP moves APPDB1 to db_19_23
+#   3. Later, repeat for staging, then prod
 
-# Per-family patching results (auto-populated by oracle_fpp_patching)
-# Dict keyed by family, each value has: target_home, home_path, databases
+# Databases to update (list of dicts: {db_name, oracle_home})
 # Example:
-#   fpp_patched_targets:
-#     19c:
-#       target_home: db_19_23
-#       home_path: /oracle/u01/product/19.23.0.0
-#       databases: [APPDB1, APPDB2]
-#     26ai:
-#       target_home: db_26ai_1
-#       home_path: /oracle/u01/product/26.1.0.0
-#       databases: [AIDB1]
-catalog_updater_patched_targets: "{{ fpp_patched_targets | default({}) }}"
+#   catalog_updater_updates:
+#     - { db_name: APPDB1, oracle_home: db_19_23 }
+#     - { db_name: APPDB2, oracle_home: db_19_23 }
+#     - { db_name: AIDB1,  oracle_home: db_26ai_1 }
+catalog_updater_updates: []
 
-# Target home targets dict (from group_vars)
-catalog_updater_home_targets: "{{ oracle_home_targets | default({}) }}"
-
-# Environment that was patched (from inventory group_vars)
+# Environment to update overlays for
 catalog_updater_target_env: "{{ oracle_environment | default('') }}"
-
-# List of all patched database names (auto-populated)
-catalog_updater_databases: "{{ fpp_patched_databases | default([]) }}"
 
 # Path to the repo root
 catalog_updater_repo_root: "{{ playbook_dir }}/.."

@@ -1,39 +1,33 @@
 ---
 # Update or create an overlay file for a single database.
-# Called from update_overlay.yml with:
-#   _db_name: database name
-#   _target_home: target oracle_home name
-#   _family: version family
+# Called from main.yml with loop_var: _update ({db_name, oracle_home})
 
-- name: "Check if overlay exists: {{ _db_name }}"
+- name: "Check if overlay exists: {{ _update.db_name }}"
   ansible.builtin.stat:
-    path: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+    path: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _update.db_name }}.yml"
   register: _overlay_stat
 
-- name: "Load existing overlay: {{ _db_name }}"
+- name: "Load existing overlay: {{ _update.db_name }}"
   ansible.builtin.include_vars:
-    file: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+    file: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _update.db_name }}.yml"
     name: _existing_overlay
   when: _overlay_stat.stat.exists
 
-- name: "Set empty overlay when none exists: {{ _db_name }}"
+- name: "Set empty overlay when none exists: {{ _update.db_name }}"
   ansible.builtin.set_fact:
     _existing_overlay: {}
   when: not _overlay_stat.stat.exists
 
-- name: "Merge oracle_home into overlay: {{ _db_name }}"
+- name: "Merge oracle_home into overlay: {{ _update.db_name }}"
   ansible.builtin.set_fact:
     _updated_overlay: >-
-      {{ _existing_overlay | combine({'oracle_home': _target_home}) }}
+      {{ _existing_overlay | combine({'oracle_home': _update.oracle_home}) }}
 
-- name: "Write overlay: {{ _db_name }}"
+- name: "Write overlay: {{ _update.db_name }}"
   ansible.builtin.copy:
     content: |
       ---
-      # Auto-updated by catalog_updater after FPP patching
-      # Environment: {{ catalog_updater_target_env }}
-      # Family: {{ _family }}
-      # Patched: {{ ansible_date_time.iso8601 | default('unknown') }}
+      # Overlay for {{ _update.db_name }} in {{ catalog_updater_target_env }}
       {{ _updated_overlay | to_nice_yaml(indent=2) }}
-    dest: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _db_name }}.yml"
+    dest: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}/{{ _update.db_name }}.yml"
     mode: "0644"

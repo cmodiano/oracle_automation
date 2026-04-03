@@ -7,33 +7,24 @@
 #   patch   - Move databases to prepared working copies, datapatch,
 #             post-checks. Run during the maintenance window.
 #
-# Supports multiple version families in parallel (19c, 21c, 26ai, etc.).
-# Each database's target home is resolved from its family via
-# oracle_home_targets dict in group_vars.
+# Desired-state model:
+#   Each database declares its desired oracle_home in its catalog file
+#   (base or overlay). The role queries actual running homes and patches
+#   only databases where actual != desired.
 #
 # Requires:
 #   - catalog_loader to have run first (provides oracle_databases)
-#   - oracle_home_targets dict in group_vars
 #   - rhpctl available on the target host (or FPP server)
 
 - name: Validate FPP mode
   ansible.builtin.assert:
     that:
       - fpp_mode in ['prepare', 'patch']
-      - oracle_home_targets is defined
-    fail_msg: "fpp_mode must be 'prepare' or 'patch'. oracle_home_targets must be defined in group_vars."
+    fail_msg: "fpp_mode must be 'prepare' or 'patch'."
   tags: [always]
 
-# Build the list of databases that need patching with their target homes.
-# Each database gets _target_home resolved via its family.
-- name: Identify databases needing patching
-  ansible.builtin.set_fact:
-    _fpp_databases: >-
-      {{ oracle_databases | default([])
-         | map('combine', {})
-         | list }}
-
-# Use a helper task to build the enriched list with target homes
+# Build the list of databases that need patching by comparing
+# actual running home vs declared desired home from catalog.
 - name: Build patching plan
   ansible.builtin.include_tasks: build_plan.yml
 

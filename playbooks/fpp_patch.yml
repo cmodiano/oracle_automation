@@ -1,11 +1,13 @@
 ---
 # FPP Patching Playbook - Two-phase patching workflow
 #
-# Supports multiple version families in parallel (19c, 21c, 26ai, etc.).
-# Each database's target is resolved from oracle_home_targets in group_vars.
+# Desired-state model:
+#   Each database declares its desired oracle_home in its catalog overlay.
+#   The FPP role queries actual running homes and patches only databases
+#   where actual != desired. Supports multiple version families in parallel.
 #
 # Phase 1: PREPARE (run days/weeks before maintenance window)
-#   - Provisions working copies from gold images (one per family)
+#   - Provisions working copies from gold images (one per target home)
 #   - Runs pre-checks
 #   - No database downtime
 #   - Outputs working copy names for the patch phase
@@ -14,34 +16,31 @@
 #   - Moves databases to prepared working copies
 #   - Runs datapatch
 #   - Verifies databases on new homes
-#   - Updates catalog overlays and commits to git
-#
-# Everything is derived from group_vars:
-#   oracle_environment:    from host group membership
-#   oracle_home_targets:   target home per version family
-#   fpp_gold_image:        derived from target home + fpp_gold_image_suffix
 #
 # Required extra_vars:
 #   fpp_mode:  prepare | patch
 #
 # Required extra_vars (patch only):
-#   fpp_working_copies:  dict of {family: working_copy_name} from prepare
-#   OR fpp_working_copy_name: single name (when only one family)
+#   fpp_working_copies:  dict of {oracle_home_name: working_copy_name} from prepare
+#   OR fpp_working_copy_name: single name (when only one target home)
 #
 # Examples:
 #
-#   # PREPARE - zero extra_vars:
+#   # Set desired state (done by DBA/planner before patching):
+#   #   databases/overlays/dev/APPDB1.yml → oracle_home: db_19_23
+#
+#   # PREPARE - provision working copies:
 #   ansible-playbook playbooks/fpp_patch.yml -l dev -e fpp_mode=prepare
 #
-#   # PATCH - single family:
+#   # PATCH - single target home:
 #   ansible-playbook playbooks/fpp_patch.yml -l dev \
 #     -e fpp_mode=patch \
 #     -e fpp_working_copy_name=db_19_23_oradev-node-1
 #
-#   # PATCH - multiple families:
+#   # PATCH - multiple target homes:
 #   ansible-playbook playbooks/fpp_patch.yml -l dev \
 #     -e fpp_mode=patch \
-#     -e '{"fpp_working_copies": {"19c": "db_19_23_oradev-node-1", "26ai": "db_26ai_1_oradev-node-1"}}'
+#     -e '{"fpp_working_copies": {"db_19_23": "wc_19_23_oradev-node-1", "db_26ai_1": "wc_26ai_1_oradev-node-1"}}'
 
 - name: "FPP {{ fpp_mode | default('unknown') | upper }} - {{ oracle_environment | default('unknown') }}"
   hosts: all
@@ -73,14 +72,3 @@
 
     - role: oracle_fpp_patching
       tags: [fpp, patching]
-
-- name: "Update catalog after FPP patching"
-  hosts: localhost
-  connection: local
-  become: false
-  gather_facts: true               # needed for ansible_date_time
-  when: fpp_mode == 'patch'        # only update catalog after actual patching
-
-  roles:
-    - role: catalog_updater
-      tags: [catalog, update]

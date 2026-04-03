@@ -1,13 +1,12 @@
 ---
-# Prepare one version family: provision working copy from gold image.
-# Called from prepare.yml with loop_var: _family
+# Prepare one target home: provision working copy from gold image.
+# Called from prepare.yml with loop_var: _target_home
 
-- name: "{{ _family }}: Resolve target and gold image"
+- name: "{{ _target_home }}: Resolve gold image"
   ansible.builtin.set_fact:
-    _target_home: "{{ oracle_home_targets[_family] }}"
-    _gold_image: "{{ (_fpp_patch_plan | selectattr('family', 'equalto', _family) | first).gold_image }}"
+    _gold_image: "{{ (_fpp_patch_plan | selectattr('desired_home', 'equalto', _target_home) | first).gold_image }}"
 
-- name: "{{ _family }}: Query gold image {{ _gold_image }}"
+- name: "{{ _target_home }}: Query gold image {{ _gold_image }}"
   ansible.builtin.command:
     cmd: >-
       {{ fpp_server_home }}/bin/rhpctl query image
@@ -17,21 +16,25 @@
   changed_when: false
   become_user: "{{ oracle_os_user }}"
 
-- name: "{{ _family }}: Validate gold image exists"
+- name: "{{ _target_home }}: Validate gold image exists"
   ansible.builtin.assert:
     that: _fpp_image_query.rc == 0
     fail_msg: "FPP gold image '{{ _gold_image }}' not found: {{ _fpp_image_query.stderr }}"
 
 # --- Provision working copy ---
 
-- name: "{{ _family }}: Set working copy name"
+# Working copy name resolution order:
+#   1. fpp_working_copies[oracle_home_name] (explicit per-home dict)
+#   2. fpp_working_copy_name (single target shorthand)
+#   3. Auto-generated: <oracle_home_name>_<hostname>
+- name: "{{ _target_home }}: Set working copy name"
   ansible.builtin.set_fact:
     _wc_name: >-
-      {{ (fpp_working_copies | default({}))[_family]
-         | default(fpp_working_copy_name if (fpp_working_copy_name | length > 0 and _fpp_families | length == 1) else '')
+      {{ (fpp_working_copies | default({}))[_target_home]
+         | default(fpp_working_copy_name if (fpp_working_copy_name | length > 0 and _fpp_target_homes | length == 1) else '')
          | default(_target_home ~ '_' ~ (inventory_hostname_short | default(inventory_hostname)), true) }}
 
-- name: "{{ _family }}: Check if working copy {{ _wc_name }} already exists"
+- name: "{{ _target_home }}: Check if working copy {{ _wc_name }} already exists"
   ansible.builtin.command:
     cmd: >-
       {{ fpp_server_home }}/bin/rhpctl query workingcopy
@@ -42,7 +45,7 @@
   failed_when: false
   become_user: "{{ oracle_os_user }}"
 
-- name: "{{ _family }}: Add working copy {{ _wc_name }} from {{ _gold_image }}"
+- name: "{{ _target_home }}: Add working copy {{ _wc_name }} from {{ _gold_image }}"
   ansible.builtin.command:
     cmd: >-
       {{ fpp_server_home }}/bin/rhpctl add workingcopy
@@ -56,7 +59,7 @@
 
 # --- Query and verify ---
 
-- name: "{{ _family }}: Query working copy path"
+- name: "{{ _target_home }}: Query working copy path"
   ansible.builtin.command:
     cmd: >-
       {{ fpp_server_home }}/bin/rhpctl query workingcopy
@@ -66,24 +69,24 @@
   changed_when: false
   become_user: "{{ oracle_os_user }}"
 
-- name: "{{ _family }}: Extract oracle_home path"
+- name: "{{ _target_home }}: Extract oracle_home path"
   ansible.builtin.set_fact:
     _new_home_path: "{{ _fpp_wc_info.stdout | regex_search('Home Path:\\s*(.+)', '\\1') | first | trim }}"
 
-- name: "{{ _family }}: Verify binaries"
+- name: "{{ _target_home }}: Verify binaries"
   ansible.builtin.command:
     cmd: "{{ _new_home_path }}/OPatch/opatch lspatches"
   register: _fpp_opatch_check
   changed_when: false
   become_user: "{{ oracle_os_user }}"
 
-- name: "{{ _family }}: Patch level"
+- name: "{{ _target_home }}: Patch level"
   ansible.builtin.debug:
     msg: "{{ _fpp_opatch_check.stdout_lines }}"
 
 # --- Register working copy name for summary and patch phase ---
 
-- name: "{{ _family }}: Register working copy"
+- name: "{{ _target_home }}: Register working copy"
   ansible.builtin.set_fact:
-    _fpp_working_copies: "{{ _fpp_working_copies | default({}) | combine({_family: _wc_name}) }}"
-    _fpp_home_paths: "{{ _fpp_home_paths | default({}) | combine({_family: _new_home_path}) }}"
+    _fpp_working_copies: "{{ _fpp_working_copies | default({}) | combine({_target_home: _wc_name}) }}"
+    _fpp_home_paths: "{{ _fpp_home_paths | default({}) | combine({_target_home: _new_home_path}) }}"

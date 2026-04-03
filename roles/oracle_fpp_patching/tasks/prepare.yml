@@ -1,7 +1,7 @@
 ---
 # FPP Prepare phase - Run BEFORE the maintenance window.
 #
-# Iterates over each version family that needs patching:
+# Iterates over each target home that needs provisioning:
 #   1. Validates the FPP gold image exists
 #   2. Provisions a working copy (installs the new Oracle Home)
 #   3. Runs pre-checks (patch level verification)
@@ -9,11 +9,11 @@
 #
 # No database downtime is incurred during this phase.
 
-- name: "Prepare family: {{ _family }}"
-  ansible.builtin.include_tasks: prepare_one_family.yml
-  loop: "{{ _fpp_families }}"
+- name: "Prepare home: {{ _target_home }}"
+  ansible.builtin.include_tasks: prepare_one_home.yml
+  loop: "{{ _fpp_target_homes }}"
   loop_control:
-    loop_var: _family
+    loop_var: _target_home
 
 # --- Final summary ---
 
@@ -23,18 +23,15 @@
       ============================================================
       FPP PREPARE COMPLETE - {{ inventory_hostname }}
       ============================================================
-      {% for family in _fpp_families %}
-      Family {{ family }}:
-        Working copy:  {{ _fpp_working_copies[family] }}
-        Target home:   {{ oracle_home_targets[family] }}
-        Gold image:    {{ (_fpp_patch_plan | selectattr('family', 'equalto', family) | first).gold_image }}
-        Databases:     {{ _fpp_patch_plan | selectattr('family', 'equalto', family) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
+      {% for home in _fpp_target_homes %}
+      Target home: {{ home }} ({{ oracle_homes[home].version }})
+        Working copy:  {{ _fpp_working_copies[home] }}
+        Gold image:    {{ (_fpp_patch_plan | selectattr('desired_home', 'equalto', home) | first).gold_image }}
+        Databases:     {{ _fpp_patch_plan | selectattr('desired_home', 'equalto', home) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
       {% endfor %}
 
       To proceed with patching during the maintenance window, run:
-        ansible-playbook playbooks/fpp_patch.yml -l {{ oracle_environment }} \
+        ansible-playbook playbooks/fpp_patch.yml -l {{ inventory_hostname }} \
           -e fpp_mode=patch \
-      {% for family in _fpp_families %}
-          -e '{{ "fpp_working_copies={" }}{% for f in _fpp_families %}"{{ f }}":"{{ _fpp_working_copies[f] }}"{% if not loop.last %},{% endif %}{% endfor %}{{ "}" }}'
-      {% endfor %}
+          -e '{{ _fpp_working_copies | to_json }}'
       ============================================================

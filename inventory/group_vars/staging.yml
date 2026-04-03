@@ -15,10 +15,3 @@ oracle_env_parameters:
   db_recovery_file_dest_size: 100G
 
 oracle_dev_memory_scale: 0.5
-
-# Patching targets per version family.
-# Staging/certification validates before prod can advance.
-oracle_home_targets:
-  19c: db_19_23
-  21c: db_21_3
-  26ai: db_26ai_1

@@ -1,35 +1,33 @@
 ---
 # FPP Patching role defaults
+#
+# The FPP role converges each database to the oracle_home declared in
+# its catalog (base + overlay). It queries the actual running home and
+# patches only databases where actual != desired.
 
 # Operating mode: prepare | patch
-#   prepare: provision working copy + pre-checks (can run days before maintenance)
-#   patch:   move databases to the prepared working copy + datapatch + post-checks
+#   prepare: provision working copies + pre-checks (before maintenance window)
+#   patch:   move databases + datapatch + post-checks (during maintenance window)
 fpp_mode: ""
 
 # FPP server ORACLE_HOME (where rhpctl lives)
 fpp_server_home: ""
 
 # FPP gold image naming convention.
-# Gold image name is derived per family target:
-#   {{ target_home_name }}{{ fpp_gold_image_suffix }}
-# Override per-family with fpp_gold_images dict if conventions differ.
+# Gold image name is derived from the desired oracle_home key:
+#   {{ desired_oracle_home }}{{ fpp_gold_image_suffix }}
+# Override per-database with fpp_gold_images dict if needed.
 fpp_gold_image_suffix: "{{ fpp_gold_image_suffix }}"
 
-# Optional: override gold image names per family (bypasses convention)
-# fpp_gold_images:
-#   19c: custom_19c_image_name
-#   26ai: custom_26ai_image_name
-
-# Name for the new working copy (FPP provisioned home).
-# In prepare mode: if empty, auto-generated per family target + hostname.
-# In patch mode: MUST be set (maps to the working copy from prepare).
-# For multi-family patching, use fpp_working_copies dict instead.
+# Name for a working copy (single-target patching).
+# For multi-target patching (databases targeting different homes),
+# use fpp_working_copies dict keyed by oracle_home name.
 fpp_working_copy_name: ""
 
-# Optional: working copies per family (for patching multiple families at once)
+# Optional: working copies per target home
 # fpp_working_copies:
-#   19c: db_19_23_oradev-node-1
-#   26ai: db_26ai_1_oradev-node-1
+#   db_19_23: wc_19_23_oradev-node-1
+#   db_26ai_1: wc_26ai_1_oradev-node-1
 
 # Run datapatch after moving databases (default: true)
 fpp_run_datapatch: true
