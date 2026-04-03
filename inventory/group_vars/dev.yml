@@ -16,3 +16,10 @@ oracle_env_parameters:
 
 # Scale factor for memory parameters in dev (applied by catalog_loader)
 oracle_dev_memory_scale: 0.25
+
+# Patching targets per version family.
+# Dev goes directly to the latest available version.
+oracle_home_targets:
+  19c: db_19_23
+  21c: db_21_3
+  26ai: db_26ai_1

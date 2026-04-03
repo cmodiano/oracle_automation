@@ -14,3 +14,11 @@ oracle_env_db_defaults:
 oracle_env_parameters:
   db_recovery_file_dest_size: 500G
   db_flashback_retention_target: 4320    # 3 days in minutes
+
+# Patching targets per version family.
+# Prod can only target versions already validated in staging.
+# Update these AFTER staging certification is complete.
+oracle_home_targets:
+  19c: db_19_21
+  21c: db_21_3
+  26ai: db_26ai_1
