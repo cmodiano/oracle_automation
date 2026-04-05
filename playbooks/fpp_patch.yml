@@ -1,0 +1,74 @@
+---
+# FPP Patching Playbook - Two-phase patching workflow
+#
+# Desired-state model:
+#   Each database declares its desired oracle_home in its catalog overlay.
+#   The FPP role queries actual running homes and patches only databases
+#   where actual != desired. Supports multiple version families in parallel.
+#
+# Phase 1: PREPARE (run days/weeks before maintenance window)
+#   - Provisions working copies from gold images (one per target home)
+#   - Runs pre-checks
+#   - No database downtime
+#   - Outputs working copy names for the patch phase
+#
+# Phase 2: PATCH (run during maintenance window)
+#   - Moves databases to prepared working copies
+#   - Runs datapatch
+#   - Verifies databases on new homes
+#
+# Required extra_vars:
+#   fpp_mode:  prepare | patch
+#
+# Required extra_vars (patch only):
+#   fpp_working_copies:  dict of {oracle_home_name: working_copy_name} from prepare
+#   OR fpp_working_copy_name: single name (when only one target home)
+#
+# Examples:
+#
+#   # Set desired state (done by DBA/planner before patching):
+#   #   databases/overlays/dev/APPDB1.yml → oracle_home: db_19_23
+#
+#   # PREPARE - provision working copies:
+#   ansible-playbook playbooks/fpp_patch.yml -l dev -e fpp_mode=prepare
+#
+#   # PATCH - single target home:
+#   ansible-playbook playbooks/fpp_patch.yml -l dev \
+#     -e fpp_mode=patch \
+#     -e fpp_working_copy_name=db_19_23_oradev-node-1
+#
+#   # PATCH - multiple target homes:
+#   ansible-playbook playbooks/fpp_patch.yml -l dev \
+#     -e fpp_mode=patch \
+#     -e '{"fpp_working_copies": {"db_19_23": "wc_19_23_oradev-node-1", "db_26ai_1": "wc_26ai_1_oradev-node-1"}}'
+
+- name: "FPP {{ fpp_mode | default('unknown') | upper }} - {{ oracle_environment | default('unknown') }}"
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  serial: 1                          # Rolling: one node at a time for RAC
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate required inputs
+      ansible.builtin.assert:
+        that:
+          - fpp_mode is defined
+          - fpp_mode in ['prepare', 'patch']
+        fail_msg: "Required: fpp_mode (prepare|patch)"
+
+    - name: Validate patch-specific inputs
+      ansible.builtin.assert:
+        that:
+          - (fpp_working_copies is defined and fpp_working_copies | length > 0) or
+            (fpp_working_copy_name is defined and fpp_working_copy_name | length > 0)
+        fail_msg: "Patch mode requires fpp_working_copies dict or fpp_working_copy_name"
+      when: fpp_mode == 'patch'
+
+  roles:
+    - role: catalog_loader
+      tags: [always]
+
+    - role: oracle_fpp_patching
+      tags: [fpp, patching]

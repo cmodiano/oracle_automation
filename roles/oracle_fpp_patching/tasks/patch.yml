@@ -1,0 +1,39 @@
+---
+# FPP Patch phase - Run DURING the maintenance window.
+#
+# Iterates over each target home that has databases to move:
+#   1. Validates the working copy exists (from prepare phase)
+#   2. Moves databases to the prepared working copy
+#   3. Runs datapatch
+#   4. Verifies databases on the new home
+
+- name: Validate patch inputs
+  ansible.builtin.assert:
+    that:
+      - (fpp_working_copies is defined and fpp_working_copies | length > 0) or
+        (fpp_working_copy_name is defined and fpp_working_copy_name | length > 0)
+    fail_msg: >-
+      Patch mode requires fpp_working_copies dict (per target home) or
+      fpp_working_copy_name (single target). These come from the prepare phase.
+
+# Build fpp_working_copies from single fpp_working_copy_name if needed
+- name: Normalize working copies to per-home dict
+  ansible.builtin.set_fact:
+    _fpp_working_copies: >-
+      {{ fpp_working_copies | default(
+           dict(_fpp_target_homes | map('community.general.dict_kv', fpp_working_copy_name))
+         ) }}
+  when: _fpp_target_homes | length > 0
+
+- name: "Patch home: {{ _target_home }}"
+  ansible.builtin.include_tasks: patch_one_home.yml
+  loop: "{{ _fpp_target_homes }}"
+  loop_control:
+    loop_var: _target_home
+
+# --- Export facts for reporting ---
+
+- name: Set patching result facts
+  ansible.builtin.set_fact:
+    fpp_patched_databases: "{{ _fpp_patch_plan | map(attribute='db') | map(attribute='db_name') | list }}"
+    cacheable: true

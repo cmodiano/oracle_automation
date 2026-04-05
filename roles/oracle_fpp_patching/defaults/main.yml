@@ -1,0 +1,52 @@
+---
+# FPP Patching role defaults
+#
+# The FPP role converges each database to the oracle_home declared in
+# its catalog (base + overlay). It queries the actual running home and
+# patches only databases where actual != desired.
+
+# Operating mode: prepare | patch
+#   prepare: provision working copies + pre-checks (before maintenance window)
+#   patch:   move databases + datapatch + post-checks (during maintenance window)
+fpp_mode: ""
+
+# Environment progression order for prerequisite validation.
+# Before patching a DB in staging, the role verifies that the same DB
+# is already at the target oracle_home in dev. Before prod, it checks
+# staging (or dev if the DB has no staging).
+# Databases that only exist in a subset of envs skip missing ones:
+#   host_mapping has dev+prod only → chain is [dev, prod]
+#   host_mapping has prod only     → no prerequisites
+fpp_env_progression:
+  - dev
+  - staging
+  - prod
+
+# FPP server ORACLE_HOME (where rhpctl lives)
+fpp_server_home: ""
+
+# FPP gold image naming convention.
+# Gold image name is derived from the desired oracle_home key:
+#   {{ desired_oracle_home }}{{ fpp_gold_image_suffix }}
+# Override per-database with fpp_gold_images dict if needed.
+fpp_gold_image_suffix: "{{ fpp_gold_image_suffix }}"
+
+# Name for a working copy (single-target patching).
+# For multi-target patching (databases targeting different homes),
+# use fpp_working_copies dict keyed by oracle_home name.
+fpp_working_copy_name: ""
+
+# Optional: working copies per target home
+# fpp_working_copies:
+#   db_19_23: wc_19_23_oradev-node-1
+#   db_26ai_1: wc_26ai_1_oradev-node-1
+
+# Run datapatch after moving databases (default: true)
+fpp_run_datapatch: true
+
+# Additional rhpctl options (free-form string appended to commands)
+fpp_rhpctl_extra_args: ""
+
+# Timeout in seconds for rhpctl operations
+fpp_provision_timeout: 3600
+fpp_move_timeout: 7200

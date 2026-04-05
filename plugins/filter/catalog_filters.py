@@ -11,6 +11,7 @@ class FilterModule:
             'catalog_merge': self.catalog_merge,
             'catalog_for_host': self.catalog_for_host,
             'resolve_oracle_home': self.resolve_oracle_home,
+            'resolve_home_family': self.resolve_home_family,
         }
 
     @staticmethod
@@ -73,3 +74,24 @@ class FilterModule:
                 f"Available: {list(oracle_homes.keys())}"
             )
         return oracle_homes[home_name]['path']
+
+    @staticmethod
+    def resolve_home_family(home_name, oracle_homes):
+        """Resolve oracle_home name to its version family.
+
+        Each oracle_home entry has a 'family' field (e.g., '19c', '21c', '26ai').
+        This filter takes a key (e.g., 'db_19_21') and returns the family.
+        """
+        if home_name not in oracle_homes:
+            raise ValueError(
+                f"Oracle home '{home_name}' not found in oracle_homes dict. "
+                f"Available: {list(oracle_homes.keys())}"
+            )
+        home = oracle_homes[home_name]
+        if 'family' not in home:
+            raise ValueError(
+                f"Oracle home '{home_name}' has no 'family' field. "
+                f"Add 'family: 19c' (or 21c, 26ai, etc.) to the entry."
+            )
+        return home['family']
+

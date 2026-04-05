@@ -1,0 +1,18 @@
+---
+# ============================================================
+# Development Environment Defaults
+# ============================================================
+
+oracle_environment: dev
+
+oracle_env_db_defaults:
+  archivelog: false
+  force_logging: false
+  flashback: false
+  supplemental_logging: false
+
+oracle_env_parameters:
+  db_recovery_file_dest_size: 50G
+
+# Scale factor for memory parameters in dev (applied by catalog_loader)
+oracle_dev_memory_scale: 0.25

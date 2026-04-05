@@ -1,0 +1,17 @@
+---
+# ============================================================
+# Baseline Init Parameters
+# ============================================================
+# Security/audit parameters enforced on ALL databases.
+# These cannot be overridden by catalog files or overlays -
+# they are applied LAST in the merge chain (highest priority).
+# ============================================================
+
+oracle_baseline_parameters:
+  audit_trail: DB
+  audit_sys_operations: TRUE
+  sec_case_sensitive_logon: TRUE
+  remote_login_passwordfile: EXCLUSIVE
+  os_authent_prefix: '""'
+  recyclebin: "OFF"
+  deferred_segment_creation: FALSE

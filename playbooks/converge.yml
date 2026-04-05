@@ -6,15 +6,6 @@
   become: true
   any_errors_fatal: true
 
-  pre_tasks:
-    - name: Validate required variables
-      ansible.builtin.assert:
-        that:
-          - oracle_environment is defined
-          - oracle_environment in ['dev', 'staging', 'prod']
-        fail_msg: "oracle_environment must be set to dev, staging, or prod"
-      tags: [always]
-
   roles:
     - role: catalog_loader
       tags: [always]

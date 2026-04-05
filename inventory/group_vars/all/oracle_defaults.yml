@@ -1,0 +1,93 @@
+---
+# ============================================================
+# Oracle Global Defaults
+# ============================================================
+# Standard paths, OS users, Oracle Home definitions, and
+# global database defaults. These apply to ALL environments.
+# ============================================================
+
+# Standard paths - mirrors collection's default_vars_only role
+oracle_base: /oracle/u01
+oracle_install_dir_root: "{{ oracle_base }}"
+oracle_install_dir_temp: "{{ oracle_base }}/tmp"
+oracle_install_dir_base: "{{ oracle_base }}/base"
+oracle_install_dir_prod: "{{ oracle_base }}/product"
+oracle_inventory_location: "{{ oracle_base }}/oraInventory"
+
+# OS user/group - matches collection conventions
+oracle_os_user: oracle
+oracle_os_uid: 800
+oracle_os_group: oinstall
+oracle_os_groups:
+  - { group: oinstall, gid: 800 }
+  - { group: dba, gid: 801 }
+  - { group: oper, gid: 802 }
+  - { group: asmadmin, gid: 803 }
+  - { group: asmdba, gid: 804 }
+  - { group: asmoper, gid: 805 }
+
+# Oracle Home definitions - catalog files reference these by name.
+# Adding a new patched home = add an entry here, no catalog files change.
+# NOTE: This section may be updated automatically by catalog_updater
+# after FPP patching. New entries are appended below existing ones.
+oracle_homes:
+  db_19_21:
+    family: 19c
+    version: "19.21.0.0"
+    path: "{{ oracle_install_dir_prod }}/19.21.0.0"
+    edition: EE
+  db_19_23:
+    family: 19c
+    version: "19.23.0.0"
+    path: "{{ oracle_install_dir_prod }}/19.23.0.0"
+    edition: EE
+  db_21_3:
+    family: 21c
+    version: "21.3.0.0"
+    path: "{{ oracle_install_dir_prod }}/21.3.0.0"
+    edition: EE
+  db_26ai_1:
+    family: 26ai
+    version: "26.1.0.0"
+    path: "{{ oracle_install_dir_prod }}/26.1.0.0"
+    edition: EE
+
+# FPP gold image naming convention.
+# The gold image name is derived from the oracle_home key:
+#   {{ oracle_home_name }}{{ fpp_gold_image_suffix }}
+# Example: oracle_home=db_19_23, suffix=_gold → gold image = db_19_23_gold
+fpp_gold_image_suffix: "_gold"
+
+# Patching convergence:
+# Each database declares its desired oracle_home in its catalog file
+# (databases/<DB>.yml) or per-environment overlay (databases/overlays/<env>/<DB>.yml).
+# The FPP patching role converges each database to its declared oracle_home.
+#
+# Progression is per-database: prod APPDB1 can be at 19.29 while prod HRDB
+# is still at 19.28, depending on certification status of each.
+#
+# Example patch cycle for APPDB1 with 19c quarterly RU (19.30):
+#   1. Add db_19_30 to oracle_homes above
+#   2. Set oracle_home: db_19_30 in overlays/dev/APPDB1.yml
+#   3. Run fpp_patch on dev → APPDB1 moves to 19.30
+#   4. Set oracle_home: db_19_30 in overlays/staging/APPDB1.yml
+#   5. Run fpp_patch on staging → APPDB1 certified at 19.30
+#   6. Set oracle_home: db_19_30 in overlays/prod/APPDB1.yml
+#   7. Run fpp_patch on prod → APPDB1 moves to 19.30
+
+# Default database options (minimalist baseline)
+oracle_db_options_default:
+  JSERVER: false
+  ORACLE_TEXT: false
+  IMEDIA: false
+  CWMLITE: false
+  SPATIAL: false
+  OMS: false
+  APEX: false
+  DV: false
+
+# Global defaults
+oracle_default_characterset: AL32UTF8
+oracle_default_national_characterset: AL16UTF16
+oracle_default_storage_type: ASM
+oracle_default_diskgroup: XDATA

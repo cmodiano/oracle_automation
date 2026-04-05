@@ -14,8 +14,8 @@
           - oracle_environment in ['dev', 'staging']
           - target_db is defined
         fail_msg: >-
-          Refresh requires oracle_environment (dev or staging only),
-          and target_db. Production refresh is not allowed.
+          Refresh requires target_db and is restricted to dev/staging
+          environments. Production refresh is not allowed.
 
   roles:
     - role: catalog_loader

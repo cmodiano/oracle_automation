@@ -10,7 +10,6 @@
     - name: Validate inputs
       ansible.builtin.assert:
         that:
-          - oracle_environment is defined
           - target_db is defined
           - failover_target is defined
 

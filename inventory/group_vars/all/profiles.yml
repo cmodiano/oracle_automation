@@ -1,0 +1,36 @@
+---
+# ============================================================
+# Standard Oracle Profiles
+# ============================================================
+# Referenced by name in database catalogs. Catalog-level
+# profile definitions are merged ON TOP of these.
+# ============================================================
+
+oracle_standard_profiles:
+  APP_PROFILE:
+    PASSWORD_LIFE_TIME: "180"
+    PASSWORD_REUSE_TIME: "365"
+    PASSWORD_REUSE_MAX: "12"
+    FAILED_LOGIN_ATTEMPTS: "5"
+    PASSWORD_LOCK_TIME: "0.0208"    # ~30 minutes
+    SESSIONS_PER_USER: UNLIMITED
+    IDLE_TIME: "60"
+
+  SVC_PROFILE:
+    PASSWORD_LIFE_TIME: UNLIMITED
+    PASSWORD_REUSE_TIME: UNLIMITED
+    PASSWORD_REUSE_MAX: UNLIMITED
+    FAILED_LOGIN_ATTEMPTS: UNLIMITED
+    SESSIONS_PER_USER: UNLIMITED
+    IDLE_TIME: UNLIMITED
+
+  BATCH_PROFILE:
+    PASSWORD_LIFE_TIME: UNLIMITED
+    SESSIONS_PER_USER: "20"
+    IDLE_TIME: "720"
+
+  MONITORING_PROFILE:
+    PASSWORD_LIFE_TIME: UNLIMITED
+    FAILED_LOGIN_ATTEMPTS: UNLIMITED
+    SESSIONS_PER_USER: "5"
+    IDLE_TIME: UNLIMITED

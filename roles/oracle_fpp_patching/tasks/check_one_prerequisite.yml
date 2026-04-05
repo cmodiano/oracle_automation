@@ -1,0 +1,67 @@
+---
+# Check prerequisite environments for a single database.
+# Called from validate_prerequisites.yml with loop_var: _entry
+#
+# _entry has: db, desired_home, desired_home_path, actual_home_path, gold_image
+# _entry.db has: db_name, oracle_home, host_mapping, ...
+
+# --- Derive the environment chain for this DB ---
+
+# Filter fpp_env_progression to only envs where this DB exists (has host_mapping).
+# Then find where oracle_environment sits in that chain.
+- name: "{{ _entry.db.db_name }}: Compute environment chain"
+  ansible.builtin.set_fact:
+    _db_env_chain: >-
+      {{ fpp_env_progression
+         | select('in', _entry.db.host_mapping.keys())
+         | list }}
+
+- name: "{{ _entry.db.db_name }}: Find prerequisite environments"
+  ansible.builtin.set_fact:
+    _prereq_envs: >-
+      {{ _db_env_chain[:_db_env_chain.index(oracle_environment)]
+         if oracle_environment in _db_env_chain
+         else [] }}
+
+# --- Skip if no prerequisites (first env in chain, or prod-only DB) ---
+
+- name: "{{ _entry.db.db_name }}: No prerequisites ({{ oracle_environment }} is first in chain)"
+  ansible.builtin.debug:
+    msg: >-
+      {{ _entry.db.db_name }}: No prerequisite environments to check.
+      Environment chain: {{ _db_env_chain }}
+  when: _prereq_envs | length == 0
+
+# --- Check each prerequisite environment ---
+
+# For each prereq env, read the effective oracle_home (overlay > base)
+# and verify it matches the desired_home we're trying to patch to.
+- name: "{{ _entry.db.db_name }}: Check prereq {{ _prereq_env }}"
+  vars:
+    _prereq_env: "{{ item }}"
+    # Read overlay file for the prereq env (returns '' if not found)
+    _prereq_overlay_raw: >-
+      {{ lookup('file',
+           _catalog_dir ~ '/overlays/' ~ item ~ '/' ~ _entry.db.db_name ~ '.yml',
+           errors='ignore')
+         | default('', true) }}
+    _prereq_overlay: "{{ (_prereq_overlay_raw | from_yaml) if _prereq_overlay_raw | length > 0 else {} }}"
+    # Read base catalog file
+    _base_raw: >-
+      {{ lookup('file', _catalog_dir ~ '/' ~ _entry.db.db_name ~ '.yml') }}
+    _base_config: "{{ _base_raw | from_yaml }}"
+    # Effective oracle_home: overlay wins over base
+    _effective_home: "{{ _prereq_overlay.oracle_home | default(_base_config.oracle_home) }}"
+  ansible.builtin.assert:
+    that:
+      - _effective_home == _entry.desired_home
+    fail_msg: >-
+      Cannot patch {{ _entry.db.db_name }} to {{ _entry.desired_home }} in {{ oracle_environment }}.
+      Prerequisite environment '{{ item }}' is at oracle_home '{{ _effective_home }}'.
+      Patch {{ item }} first, then retry {{ oracle_environment }}.
+      (Environment chain for {{ _entry.db.db_name }}: {{ _db_env_chain }})
+    success_msg: >-
+      {{ _entry.db.db_name }}: {{ item }} is at {{ _effective_home }} ✓
+  loop: "{{ _prereq_envs }}"
+  loop_control:
+    label: "{{ _entry.db.db_name }} ← {{ item }}"

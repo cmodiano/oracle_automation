@@ -1,0 +1,74 @@
+---
+# Register a new Oracle Home in the repository.
+#
+# Use this playbook when FPP provisions a new Oracle Home
+# outside of the patching workflow and you need to register
+# it in oracle_defaults.yml for future use.
+#
+# Required extra_vars:
+#   home_name:    symbolic name (e.g., "db_19_25")
+#   home_version: version string (e.g., "19.25.0.0")
+#   home_path:    filesystem path (e.g., "/oracle/u01/product/19.25.0.0")
+#
+# Optional extra_vars:
+#   home_edition: EE | SE2 (default: EE)
+#
+# Example:
+#   ansible-playbook playbooks/register_oracle_home.yml \
+#     -e home_name=db_19_25 \
+#     -e home_version=19.25.0.0 \
+#     -e "home_path=/oracle/u01/product/19.25.0.0"
+
+- name: Register new Oracle Home
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+
+  vars:
+    _oracle_defaults_file: "{{ playbook_dir }}/../inventory/group_vars/all/oracle_defaults.yml"
+    _repo_root: "{{ playbook_dir }}/.."
+
+  pre_tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - home_name is defined and home_name | length > 0
+          - home_version is defined and home_version | length > 0
+          - home_path is defined and home_path | length > 0
+        fail_msg: "Required: home_name, home_version, home_path"
+
+    - name: Load current oracle_defaults
+      ansible.builtin.include_vars:
+        file: "{{ _oracle_defaults_file }}"
+        name: _current_defaults
+
+    - name: Check if home already registered
+      ansible.builtin.assert:
+        that: home_name not in (_current_defaults.oracle_homes | default({}))
+        fail_msg: "Oracle home '{{ home_name }}' already exists in oracle_defaults.yml"
+
+  tasks:
+    - name: "Register oracle_home: {{ home_name }}"
+      ansible.builtin.blockinfile:
+        path: "{{ _oracle_defaults_file }}"
+        marker: "# {mark} ANSIBLE MANAGED - {{ home_name }}"
+        insertafter: "^oracle_homes:"
+        block: |2
+            {{ home_name }}:
+              version: "{{ home_version }}"
+              path: "{{ home_path }}"
+              edition: {{ home_edition | default('EE') }}
+
+    - name: Commit registration
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+        chdir: "{{ _repo_root }}"
+      loop:
+        - git add inventory/group_vars/all/oracle_defaults.yml
+        - "git commit -m 'Register new oracle_home: {{ home_name }} ({{ home_version }})'"
+        - git push
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Registered {{ home_name }} ({{ home_version }}) at {{ home_path }}"

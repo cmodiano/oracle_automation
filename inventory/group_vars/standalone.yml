@@ -1,0 +1,7 @@
+---
+# ============================================================
+# Standalone Topology Defaults
+# ============================================================
+
+oracle_install_type: standalone
+oracle_dbconfig_type: SI

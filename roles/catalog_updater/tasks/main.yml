@@ -1,0 +1,95 @@
+---
+# catalog_updater - Set desired oracle_home in database overlay files.
+#
+# This role runs on localhost and:
+#   1. Creates/updates overlay files to set oracle_home for each database
+#   2. Commits and pushes changes to git
+#
+# Used BEFORE patching to declare desired state. The FPP role then
+# converges actual → desired.
+
+- name: Validate catalog_updater inputs
+  ansible.builtin.assert:
+    that:
+      - catalog_updater_updates | length > 0
+      - catalog_updater_target_env in ['dev', 'staging', 'prod']
+    fail_msg: >-
+      catalog_updater requires: catalog_updater_updates (list of
+      {db_name, oracle_home} dicts) and catalog_updater_target_env.
+  tags: [always]
+
+# --- Validate that all referenced oracle_homes exist ---
+
+- name: Load oracle_defaults to validate homes
+  ansible.builtin.include_vars:
+    file: "{{ catalog_updater_oracle_defaults_file }}"
+    name: _oracle_defaults
+
+- name: Validate oracle_home references
+  ansible.builtin.assert:
+    that:
+      - item.oracle_home in _oracle_defaults.oracle_homes
+    fail_msg: >-
+      Oracle home '{{ item.oracle_home }}' not found in oracle_defaults.yml.
+      Available: {{ _oracle_defaults.oracle_homes.keys() | list }}
+  loop: "{{ catalog_updater_updates }}"
+  loop_control:
+    label: "{{ item.db_name }} → {{ item.oracle_home }}"
+
+# --- Update overlay files ---
+
+- name: Ensure overlay directory exists
+  ansible.builtin.file:
+    path: "{{ catalog_updater_catalog_dir }}/overlays/{{ catalog_updater_target_env }}"
+    state: directory
+    mode: "0755"
+
+- name: Update overlay for each database
+  ansible.builtin.include_tasks: update_one_overlay.yml
+  loop: "{{ catalog_updater_updates }}"
+  loop_control:
+    loop_var: _update
+    label: "{{ _update.db_name }} → {{ _update.oracle_home }}"
+
+# --- Git commit and push ---
+
+- name: Check for changes
+  ansible.builtin.command:
+    cmd: git status --porcelain
+    chdir: "{{ catalog_updater_repo_root }}"
+  register: _git_status
+  changed_when: false
+
+- name: Commit catalog updates
+  when:
+    - catalog_updater_git_commit | bool
+    - _git_status.stdout | length > 0
+  block:
+    - name: Stage changed files
+      ansible.builtin.command:
+        cmd: git add databases/overlays/
+        chdir: "{{ catalog_updater_repo_root }}"
+
+    - name: Build commit message
+      ansible.builtin.set_fact:
+        _commit_msg: >-
+          auto: set desired oracle_home for {{ catalog_updater_target_env }}
+          {% for u in catalog_updater_updates %}
+
+          {{ u.db_name }} → {{ u.oracle_home }}
+          {% endfor %}
+
+    - name: Commit changes
+      ansible.builtin.command:
+        cmd: "git commit -m '{{ _commit_msg }}'"
+        chdir: "{{ catalog_updater_repo_root }}"
+
+- name: Push changes
+  ansible.builtin.command:
+    cmd: >-
+      git push {{ catalog_updater_git_remote }}
+      {{ catalog_updater_git_branch | default('HEAD', true) }}
+    chdir: "{{ catalog_updater_repo_root }}"
+  when:
+    - catalog_updater_git_push | bool
+    - _git_status.stdout | length > 0

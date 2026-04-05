@@ -1,0 +1,16 @@
+---
+# ============================================================
+# Production Environment Defaults
+# ============================================================
+
+oracle_environment: prod
+
+oracle_env_db_defaults:
+  archivelog: true
+  force_logging: true
+  flashback: true
+  supplemental_logging: true
+
+oracle_env_parameters:
+  db_recovery_file_dest_size: 500G
+  db_flashback_retention_target: 4320    # 3 days in minutes

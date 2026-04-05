@@ -1,0 +1,32 @@
+---
+# oracle_fpp_patching - Orchestrate Oracle FPP (Fleet Patching and Provisioning)
+#
+# Two modes controlled by fpp_mode:
+#   prepare - Provision working copies from gold images, run pre-checks.
+#             Can be run days/weeks before the maintenance window.
+#   patch   - Move databases to prepared working copies, datapatch,
+#             post-checks. Run during the maintenance window.
+#
+# Desired-state model:
+#   Each database declares its desired oracle_home in its catalog file
+#   (base or overlay). The role queries actual running homes and patches
+#   only databases where actual != desired.
+#
+# Requires:
+#   - catalog_loader to have run first (provides oracle_databases)
+#   - rhpctl available on the target host (or FPP server)
+
+- name: Validate FPP mode
+  ansible.builtin.assert:
+    that:
+      - fpp_mode in ['prepare', 'patch']
+    fail_msg: "fpp_mode must be 'prepare' or 'patch'."
+  tags: [always]
+
+# Build the list of databases that need patching by comparing
+# actual running home vs declared desired home from catalog.
+- name: Build patching plan
+  ansible.builtin.include_tasks: build_plan.yml
+
+- name: "Run FPP {{ fpp_mode }} phase"
+  ansible.builtin.include_tasks: "{{ fpp_mode }}.yml"
