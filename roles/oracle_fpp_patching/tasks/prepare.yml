@@ -1,19 +1,30 @@
 ---
 # FPP Prepare phase - Run BEFORE the maintenance window.
 #
-# Iterates over each target home that needs provisioning:
+# Iterates over target homes that are NOT yet installed on this host:
 #   1. Validates the FPP gold image exists
 #   2. Provisions a working copy (installs the new Oracle Home)
 #   3. Runs pre-checks (patch level verification)
 #   4. Reports the working copy names for the patch phase
 #
+# Homes whose path already exists on disk are skipped (already prepared).
 # No database downtime is incurred during this phase.
+
+- name: "Homes already installed on {{ inventory_hostname }} (skipping prepare)"
+  ansible.builtin.debug:
+    msg: "{{ _fpp_homes_ready | map('extract', oracle_homes, 'version') | zip(_fpp_homes_ready) | map('reverse') | map('join', ' = ') | list }}"
+  when: _fpp_homes_ready | length > 0
 
 - name: "Prepare home: {{ _target_home }}"
   ansible.builtin.include_tasks: prepare_one_home.yml
-  loop: "{{ _fpp_target_homes }}"
+  loop: "{{ _fpp_homes_to_prepare }}"
   loop_control:
     loop_var: _target_home
+
+- name: Nothing to prepare on this host
+  ansible.builtin.debug:
+    msg: "All target homes are already installed on {{ inventory_hostname }}. No FPP provisioning needed."
+  when: _fpp_homes_to_prepare | length == 0
 
 # --- Final summary ---
 
@@ -23,15 +34,25 @@
       ============================================================
       FPP PREPARE COMPLETE - {{ inventory_hostname }}
       ============================================================
-      {% for home in _fpp_target_homes %}
+      {% if _fpp_homes_to_prepare | length > 0 %}
+      Newly provisioned:
+      {% for home in _fpp_homes_to_prepare %}
       Target home: {{ home }} ({{ oracle_homes[home].version }})
         Working copy:  {{ _fpp_working_copies[home] }}
         Gold image:    {{ (_fpp_patch_plan | selectattr('desired_home', 'equalto', home) | first).gold_image }}
         Databases:     {{ _fpp_patch_plan | selectattr('desired_home', 'equalto', home) | map(attribute='db') | map(attribute='db_name') | join(', ') }}
       {% endfor %}
+      {% endif %}
+      {% if _fpp_homes_ready | length > 0 %}
+      Already installed (no action):
+      {% for home in _fpp_homes_ready %}
+        {{ home }} ({{ oracle_homes[home].version }}) at {{ oracle_homes[home].path }}
+      {% endfor %}
+      {% endif %}
 
       To proceed with patching during the maintenance window, run:
         ansible-playbook playbooks/fpp_patch.yml -l {{ inventory_hostname }} \
           -e fpp_mode=patch \
-          -e '{{ _fpp_working_copies | to_json }}'
+          -e '{{ _fpp_working_copies | default({}) | to_json }}'
       ============================================================
+  when: _fpp_homes_to_prepare | length > 0

@@ -16,6 +16,16 @@
       Patch mode requires fpp_working_copies dict (per target home) or
       fpp_working_copy_name (single target). These come from the prepare phase.
 
+- name: Fail if target homes are not yet installed on this host
+  ansible.builtin.fail:
+    msg: >-
+      Oracle Home '{{ _target_home }}' ({{ oracle_homes[_target_home].version }})
+      is not installed at {{ oracle_homes[_target_home].path }} on {{ inventory_hostname }}.
+      Run fpp_mode=prepare first to provision the working copy.
+  loop: "{{ _fpp_homes_to_prepare }}"
+  loop_control:
+    loop_var: _target_home
+
 # Build fpp_working_copies from single fpp_working_copy_name if needed
 - name: Normalize working copies to per-home dict
   ansible.builtin.set_fact:
