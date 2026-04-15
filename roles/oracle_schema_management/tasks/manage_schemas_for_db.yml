@@ -1,7 +1,17 @@
 ---
-# Manage schemas for a single database, iterating over PDBs.
+# Manage schemas for a single database.
+#
+# Execution order:
+#   Step 1: Baseline CDB root accounts (profiles → roles → users → grants)
+#   Step 2: Catalog CDB-level profiles
+#   Step 3: Baseline PDB accounts per PDB (profiles → roles → users → grants)
+#   Step 4: Catalog PDB schema management per PDB
 
-# --- Step 1: CDB-level profiles ---
+# --- Step 1: Baseline CDB root accounts ---
+- name: "Apply baseline accounts to CDB root {{ _db.db_name }}"
+  ansible.builtin.include_tasks: manage_baseline_for_cdb.yml
+
+# --- Step 2: Catalog CDB-level profiles ---
 - name: "Manage CDB-level profiles for {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_profile:
     mode: sysdba
@@ -23,7 +33,18 @@
     _attr: "{{ item.1 }}"
   when: _db.profiles is defined
 
-# --- Step 2-4: Per-PDB schema management ---
+# --- Step 3: Baseline PDB accounts ---
+- name: "Apply baseline accounts to PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: manage_baseline_for_pdb.yml
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  when:
+    - _db.pdbs is defined
+    - _pdb_item.value.state | default('open') != 'absent'
+
+# --- Step 4: Catalog PDB schema management ---
 - name: "Manage schemas for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
   ansible.builtin.include_tasks: manage_schemas_for_pdb.yml
   loop: "{{ _db.pdbs | default({}) | dict2items }}"

@@ -1,0 +1,134 @@
+---
+# Apply baseline accounts to a single PDB.
+# Runs BEFORE catalog-specific manage_schemas_for_pdb.yml.
+# Variables: _db (database), _pdb_item (PDB dict item: key=name, value=config)
+# Data source: oracle_baseline_accounts.pdb (group_vars/all/baseline_accounts.yml)
+# Vault path: oracle-secrets/data/_baseline/{username}
+
+# --- Baseline PDB Profiles ---
+- name: "Baseline PDB profile {{ _bl_pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_profile:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _bl_pdb_profile.key }}"
+    attribute_name: "{{ _bl_pdb_attr.key }}"
+    attribute_value: "{{ _bl_pdb_attr.value }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: >-
+    {{ oracle_baseline_accounts.pdb.profiles | default({}) | dict2items
+       | subelements('value' | dict2items, skip_missing=True) }}
+  loop_control:
+    label: "{{ _pdb_item.key }}: {{ _bl_pdb_profile.key }}.{{ _bl_pdb_attr.key }}"
+  vars:
+    _bl_pdb_profile: "{{ item.0 }}"
+    _bl_pdb_attr: "{{ item.1 }}"
+  when: oracle_baseline_accounts.pdb.profiles | default({}) | length > 0
+
+# --- Baseline PDB Roles ---
+- name: "Baseline PDB role {{ _bl_pdb_role.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_role:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    role: "{{ _bl_pdb_role.key }}"
+    state: "{{ _bl_pdb_role.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.roles | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_role
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_role.key }}"
+  when: oracle_baseline_accounts.pdb.roles | default({}) | length > 0
+
+# --- Baseline PDB Users ---
+- name: "Baseline PDB user {{ _bl_pdb_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_user:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_pdb_user.key }}"
+    schema_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/_baseline/' ~ _bl_pdb_user.key,
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    profile: "{{ _bl_pdb_user.value.profile | default(omit) }}"
+    authentication_type: "{{ _bl_pdb_user.value.authentication_type | default('password') }}"
+    expired: "{{ _bl_pdb_user.value.expired | default(omit) }}"
+    locked: "{{ _bl_pdb_user.value.locked | default(omit) }}"
+    state: "{{ _bl_pdb_user.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_user
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_user.key }}"
+  when: oracle_baseline_accounts.pdb.users | default({}) | length > 0
+
+# --- Baseline PDB Grants (role grants) ---
+- name: "Baseline PDB role grants for {{ _bl_pdb_grant_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_grant:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_pdb_grant_user.key }}"
+    grants: "{{ _bl_pdb_grant_user.value.grants.roles | default([]) }}"
+    grant_mode: "{{ _bl_pdb_grant_user.value.grants.grant_mode | default('append') }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_grant_user
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_grant_user.key }}"
+  when:
+    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - _bl_pdb_grant_user.value.grants is defined
+    - _bl_pdb_grant_user.value.grants.roles is defined
+    - _bl_pdb_grant_user.value.state | default('present') == 'present'
+
+# --- Baseline PDB Grants (system privileges) ---
+- name: "Baseline PDB system privs for {{ _bl_pdb_syspriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_privs:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_pdb_syspriv_user.key }}"
+    privs: "{{ _bl_pdb_syspriv_user.value.grants.system_privileges }}"
+    privs_type: system
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_syspriv_user
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_syspriv_user.key }}"
+  when:
+    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - _bl_pdb_syspriv_user.value.grants is defined
+    - _bl_pdb_syspriv_user.value.grants.system_privileges is defined
+    - _bl_pdb_syspriv_user.value.state | default('present') == 'present'
+
+# --- Baseline PDB Grants (object privileges) ---
+- name: "Baseline PDB object privs for {{ _bl_pdb_objpriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_privs:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _pdb_item.key }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_pdb_objpriv_user.key }}"
+    privs: "{{ _bl_pdb_objpriv_user.value.grants.object_privileges }}"
+    privs_type: object
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_objpriv_user
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_objpriv_user.key }}"
+  when:
+    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - _bl_pdb_objpriv_user.value.grants is defined
+    - _bl_pdb_objpriv_user.value.grants.object_privileges is defined
+    - _bl_pdb_objpriv_user.value.state | default('present') == 'present'

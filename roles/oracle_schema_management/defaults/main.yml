@@ -1,0 +1,15 @@
+---
+# Default empty baseline — overridden by
+# inventory/group_vars/all/baseline_accounts.yml.
+#
+# Ansible precedence: defaults/ < group_vars/all/
+# The group_vars value always wins.
+oracle_baseline_accounts:
+  cdb:
+    profiles: {}
+    roles: {}
+    users: {}
+  pdb:
+    profiles: {}
+    roles: {}
+    users: {}
