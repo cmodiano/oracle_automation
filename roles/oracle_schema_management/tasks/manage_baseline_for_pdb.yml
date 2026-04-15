@@ -1,16 +1,22 @@
 ---
-# Apply baseline accounts to a single PDB.
+# Apply baseline accounts to a single PDB (or non-CDB database root).
 # Runs BEFORE catalog-specific manage_schemas_for_pdb.yml.
 # Variables: _db (database), _pdb_item (PDB dict item: key=name, value=config)
 # Data source: oracle_baseline_accounts.pdb (group_vars/all/baseline_accounts.yml)
 # Vault path: oracle-secrets/data/_baseline/{username}
+#
+# Connection model:
+#   CDB    : service_name=_db.db_name  +  session_container=_pdb_item.key
+#   non-CDB: service_name=_db.db_name  (no session_container)
+#             _pdb_item.key == _db.db_name for non-CDB (synthetic item)
 
 # --- Baseline PDB Profiles ---
 - name: "Baseline PDB profile {{ _bl_pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_profile:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     name: "{{ _bl_pdb_profile.key }}"
     attribute_name: "{{ _bl_pdb_attr.key }}"
@@ -32,7 +38,8 @@
   ibre5041.ansible_oracle_modules.oracle_role:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     role: "{{ _bl_pdb_role.key }}"
     state: "{{ _bl_pdb_role.value.state | default('present') }}"
@@ -48,7 +55,8 @@
   ibre5041.ansible_oracle_modules.oracle_user:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_pdb_user.key }}"
     schema_password: >-
@@ -72,7 +80,8 @@
   ibre5041.ansible_oracle_modules.oracle_grant:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_pdb_grant_user.key }}"
     grants: "{{ _bl_pdb_grant_user.value.grants.roles | default([]) }}"
@@ -94,7 +103,8 @@
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_pdb_syspriv_user.key }}"
     privs: "{{ _bl_pdb_syspriv_user.value.grants.system_privileges }}"
@@ -116,7 +126,8 @@
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
     hostname: localhost
-    service_name: "{{ _pdb_item.key }}"
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_pdb_objpriv_user.key }}"
     privs: "{{ _bl_pdb_objpriv_user.value.grants.object_privileges }}"
