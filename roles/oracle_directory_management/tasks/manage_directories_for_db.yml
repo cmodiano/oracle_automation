@@ -5,7 +5,6 @@
 - name: "Manage CDB directory {{ _cdb_dir.key }} in {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_directory:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     directory_name: "{{ _cdb_dir.key }}"
@@ -22,7 +21,6 @@
 - name: "Manage PDB directories for {{ _dir_pdb.key }} in {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_directory:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _dir_pdb.key }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     directory_name: "{{ _pdb_dir.key }}"

@@ -5,7 +5,6 @@
 - name: "Create/update tablespace {{ _ts_item.key }} in {{ _db.db_name }}/{{ _pdb_ts.key }}"
   ibre5041.ansible_oracle_modules.oracle_tablespace:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _pdb_ts.key }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     tablespace: "{{ _ts_item.key }}"

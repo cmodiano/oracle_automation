@@ -69,7 +69,6 @@
 - name: "{{ _target_home }}: Verify databases on new home"
   ibre5041.ansible_oracle_modules.oracle_facts:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _entry.db.db_name }}"
     oracle_home: "{{ _new_home_path }}"
     database: true

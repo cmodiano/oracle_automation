@@ -12,7 +12,6 @@
 - name: "Apply parameter {{ _param.key }} on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_parameter:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     name: "{{ _param.key }}"
@@ -32,7 +31,6 @@
 - name: "Apply static parameter {{ _param_retry.item._param.key }} with spfile scope on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_parameter:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     name: "{{ _param_retry.item._param.key }}"

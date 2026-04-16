@@ -10,7 +10,6 @@
 - name: "Manage PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_pdb:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     name: "{{ _pdb_item.key }}"

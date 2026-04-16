@@ -31,7 +31,6 @@
 - name: "Manage service {{ _si_svc.key }} for {{ _db.db_name }}/{{ _svc_pdb.key }}"
   ibre5041.ansible_oracle_modules.oracle_services:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     name: "{{ _si_svc.key }}"
