@@ -1,0 +1,78 @@
+---
+# Manage profiles for one database (_db).
+# Called by main.yml per database with tag: profiles
+#
+# Order:
+#   1. Baseline CDB profiles  (oracle_baseline_accounts.cdb.profiles → CDB root)
+#   2. Catalog CDB profiles   (_db.profiles → CDB root)
+#   3. Per-PDB profiles       (profiles_per_pdb.yml per PDB or non-CDB root)
+#
+# Connection model:
+#   CDB root : service_name=_db.db_name  (no session_container)
+#   PDB      : service_name=_db.db_name  +  session_container=pdb_name  (in profiles_per_pdb.yml)
+#   non-CDB  : service_name=_db.db_name  (no session_container, synthetic _pdb_item)
+
+# --- Baseline CDB Profiles ---
+- name: "Baseline CDB profile {{ _bl_cdb_profile.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_profile:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _bl_cdb_profile.key }}"
+    attribute_name: "{{ _bl_cdb_attr.key }}"
+    attribute_value: "{{ _bl_cdb_attr.value }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: >-
+    {{ oracle_baseline_accounts.cdb.profiles | default({}) | dict2items
+       | subelements('value' | dict2items, skip_missing=True) }}
+  loop_control:
+    label: "{{ _db.db_name }}: {{ _bl_cdb_profile.key }}.{{ _bl_cdb_attr.key }}"
+  vars:
+    _bl_cdb_profile: "{{ item.0 }}"
+    _bl_cdb_attr: "{{ item.1 }}"
+  when: oracle_baseline_accounts.cdb.profiles | default({}) | length > 0
+
+# --- Catalog CDB Profiles ---
+- name: "CDB profile {{ _profile.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_profile:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    name: "{{ _profile.key }}"
+    attribute_name: "{{ _attr.key }}"
+    attribute_value: "{{ _attr.value }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: >-
+    {{ _db.profiles | default({}) | dict2items
+       | subelements('value' | dict2items, skip_missing=True) }}
+  loop_control:
+    label: "{{ _db.db_name }}: {{ _profile.key }}.{{ _attr.key }}"
+  vars:
+    _profile: "{{ item.0 }}"
+    _attr: "{{ item.1 }}"
+  when: _db.profiles | default({}) | length > 0
+
+# --- Per-PDB Profiles (CDB path) ---
+- name: "Manage profiles for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_per_pdb.yml
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  when:
+    - _db.cdb | default(true)
+    - _db.pdbs is defined
+    - _pdb_item.value.state | default('open') != 'absent'
+
+# --- Per-PDB Profiles (non-CDB path) ---
+- name: "Manage profiles for non-CDB database {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_per_pdb.yml
+  vars:
+    _pdb_item:
+      key: "{{ _db.db_name }}"
+      value: {}
+  when: not (_db.cdb | default(true))

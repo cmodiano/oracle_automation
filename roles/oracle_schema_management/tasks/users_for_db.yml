@@ -1,0 +1,55 @@
+---
+# Manage users for one database (_db).
+# Called by main.yml per database with tag: users
+#
+# Order:
+#   1. Baseline CDB users  (oracle_baseline_accounts.cdb.users → CDB root)
+#   2. Per-PDB users       (users_per_pdb.yml per PDB or non-CDB root)
+#
+# Note: No catalog CDB users — users are declared at PDB level in the catalog.
+# Vault path for baseline: vault_engine/data/_baseline/{username}
+
+# --- Baseline CDB Users ---
+- name: "Baseline CDB user {{ _bl_cdb_user.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_user:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_cdb_user.key }}"
+    schema_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/_baseline/' ~ _bl_cdb_user.key,
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    profile: "{{ _bl_cdb_user.value.profile | default(omit) }}"
+    authentication_type: "{{ _bl_cdb_user.value.authentication_type | default('password') }}"
+    expired: "{{ _bl_cdb_user.value.expired | default(omit) }}"
+    locked: "{{ _bl_cdb_user.value.locked | default(omit) }}"
+    state: "{{ _bl_cdb_user.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.cdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_cdb_user
+    label: "{{ _db.db_name }}/{{ _bl_cdb_user.key }}"
+  when: oracle_baseline_accounts.cdb.users | default({}) | length > 0
+
+# --- Per-PDB Users (CDB path) ---
+- name: "Manage users for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: users_per_pdb.yml
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  when:
+    - _db.cdb | default(true)
+    - _db.pdbs is defined
+    - _pdb_item.value.state | default('open') != 'absent'
+
+# --- Per-PDB Users (non-CDB path) ---
+- name: "Manage users for non-CDB database {{ _db.db_name }}"
+  ansible.builtin.include_tasks: users_per_pdb.yml
+  vars:
+    _pdb_item:
+      key: "{{ _db.db_name }}"
+      value: {}
+  when: not (_db.cdb | default(true))

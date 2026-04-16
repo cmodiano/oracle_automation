@@ -1,0 +1,41 @@
+---
+# Manage roles for one PDB (or non-CDB root).
+# Variables: _db, _pdb_item (key=pdb_name or db_name for non-CDB, value=pdb config)
+#
+# Connection model:
+#   CDB    : service_name=_db.db_name  +  session_container=_pdb_item.key
+#   non-CDB: service_name=_db.db_name  (session_container omitted)
+
+# --- Baseline PDB Roles ---
+- name: "Baseline PDB role {{ _bl_pdb_role.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_role:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    role: "{{ _bl_pdb_role.key }}"
+    state: "{{ _bl_pdb_role.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.roles | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_role
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_role.key }}"
+  when: oracle_baseline_accounts.pdb.roles | default({}) | length > 0
+
+# --- Catalog PDB Roles ---
+- name: "PDB role {{ _pdb_role.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_role:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    role: "{{ _pdb_role.key }}"
+    state: "{{ _pdb_role.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _pdb_item.value.roles | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_role
+    label: "{{ _pdb_item.key }}/{{ _pdb_role.key }}"
+  when: _pdb_item.value.roles | default({}) | length > 0

@@ -1,0 +1,63 @@
+---
+# Manage users for one PDB (or non-CDB root).
+# Variables: _db, _pdb_item (key=pdb_name or db_name for non-CDB, value=pdb config)
+#
+# Connection model:
+#   CDB    : service_name=_db.db_name  +  session_container=_pdb_item.key
+#   non-CDB: service_name=_db.db_name  (session_container omitted)
+#
+# Vault paths:
+#   baseline : vault_engine/data/_baseline/{username}
+#   catalog  : vault_engine/data/{db_name}/{pdb_name}/{username}
+
+# --- Baseline PDB Users ---
+- name: "Baseline PDB user {{ _bl_pdb_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_user:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_pdb_user.key }}"
+    schema_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/_baseline/' ~ _bl_pdb_user.key,
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    profile: "{{ _bl_pdb_user.value.profile | default(omit) }}"
+    authentication_type: "{{ _bl_pdb_user.value.authentication_type | default('password') }}"
+    expired: "{{ _bl_pdb_user.value.expired | default(omit) }}"
+    locked: "{{ _bl_pdb_user.value.locked | default(omit) }}"
+    state: "{{ _bl_pdb_user.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_pdb_user
+    label: "{{ _pdb_item.key }}/{{ _bl_pdb_user.key }}"
+  when: oracle_baseline_accounts.pdb.users | default({}) | length > 0
+
+# --- Catalog PDB Users ---
+- name: "PDB user {{ _pdb_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ibre5041.ansible_oracle_modules.oracle_user:
+    mode: sysdba
+    hostname: localhost
+    service_name: "{{ _db.db_name }}"
+    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _pdb_user.key }}"
+    schema_password: >-
+      {{ lookup('community.hashi_vault.hashi_vault',
+         vault_engine ~ '/data/' ~ _db.db_name ~ '/' ~ _pdb_item.key ~ '/' ~ _pdb_user.key,
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+    default_tablespace: "{{ _pdb_user.value.default_tablespace | default(omit) }}"
+    default_temp_tablespace: "{{ _pdb_user.value.default_temp_tablespace | default('TEMP') }}"
+    profile: "{{ _pdb_user.value.profile | default(omit) }}"
+    authentication_type: "{{ _pdb_user.value.authentication_type | default('password') }}"
+    expired: "{{ _pdb_user.value.expired | default(omit) }}"
+    locked: "{{ _pdb_user.value.locked | default(omit) }}"
+    state: "{{ _pdb_user.value.state | default('present') }}"
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ _pdb_item.value.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_user
+    label: "{{ _pdb_item.key }}/{{ _pdb_user.key }}"
+  when: _pdb_item.value.users | default({}) | length > 0

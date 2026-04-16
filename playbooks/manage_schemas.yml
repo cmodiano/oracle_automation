@@ -1,4 +1,21 @@
 ---
+# Manage Oracle schemas: profiles, roles, users, grants.
+#
+# Full convergence (all resource types):
+#   ansible-playbook playbooks/manage_schemas.yml
+#
+# Selective execution by resource type:
+#   ansible-playbook playbooks/manage_schemas.yml --tags profiles
+#   ansible-playbook playbooks/manage_schemas.yml --tags roles
+#   ansible-playbook playbooks/manage_schemas.yml --tags users
+#   ansible-playbook playbooks/manage_schemas.yml --tags grants
+#
+# Scope to specific hosts:
+#   ansible-playbook playbooks/manage_schemas.yml -l db_host1 --tags users
+#
+# Note: oracle_tablespace_management always runs first (tablespaces must exist
+#       before users can reference them as default_tablespace).
+
 - name: Manage Oracle Schemas
   hosts: all
   collections:
@@ -8,5 +25,5 @@
 
   roles:
     - role: catalog_loader
-    - role: oracle_tablespace_management    # Tablespaces must exist before users reference them
+    - role: oracle_tablespace_management
     - role: oracle_schema_management
