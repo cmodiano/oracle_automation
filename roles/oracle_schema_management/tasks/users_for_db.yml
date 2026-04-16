@@ -13,7 +13,6 @@
 - name: "Baseline CDB user {{ _bl_cdb_user.key }} on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_user:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_cdb_user.key }}"

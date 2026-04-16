@@ -10,7 +10,6 @@
 - name: "Baseline PDB profile {{ _bl_pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_profile:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -33,7 +32,6 @@
 - name: "PDB profile {{ _pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_profile:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"

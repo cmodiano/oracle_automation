@@ -13,7 +13,6 @@
 - name: "Baseline CDB role grants for {{ _bl_cdb_grant_user.key }} on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_grant:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_cdb_grant_user.key }}"
@@ -35,7 +34,6 @@
 - name: "Baseline CDB system privs for {{ _bl_cdb_syspriv_user.key }} on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_cdb_syspriv_user.key }}"
@@ -57,7 +55,6 @@
 - name: "Baseline CDB object privs for {{ _bl_cdb_objpriv_user.key }} on {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     schema: "{{ _bl_cdb_objpriv_user.key }}"

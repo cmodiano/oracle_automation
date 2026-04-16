@@ -11,7 +11,6 @@
 - name: "Baseline PDB role grants for {{ _bl_pdb_grant_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_grant:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -34,7 +33,6 @@
 - name: "Baseline PDB system privs for {{ _bl_pdb_syspriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -57,7 +55,6 @@
 - name: "Baseline PDB object privs for {{ _bl_pdb_objpriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -80,7 +77,6 @@
 - name: "Role grants for {{ _pdb_grant_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_grant:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -102,7 +98,6 @@
 - name: "System privs for {{ _pdb_syspriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
@@ -124,7 +119,6 @@
 - name: "Object privs for {{ _pdb_objpriv_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ibre5041.ansible_oracle_modules.oracle_privs:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _db.db_name }}"
     session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
     oracle_home: "{{ _db._oracle_home_path }}"
