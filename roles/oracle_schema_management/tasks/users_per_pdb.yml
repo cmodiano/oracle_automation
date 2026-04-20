@@ -33,11 +33,11 @@
     locked: "{{ _bl_pdb_user.value.locked | default(omit) }}"
     state: "{{ _bl_pdb_user.value.state | default('present') }}"
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_pdb_user
     label: "{{ _pdb_item.key }}/{{ _bl_pdb_user.key }}"
-  when: oracle_baseline_accounts.pdb.users | default({}) | length > 0
+  when: ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | length > 0
 
 # --- Catalog PDB Users ---
 - name: "PDB user {{ _pdb_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"

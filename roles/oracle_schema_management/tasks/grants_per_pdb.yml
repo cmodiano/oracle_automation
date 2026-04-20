@@ -19,12 +19,12 @@
     grant_mode: "{{ _bl_pdb_grant_user.value.grants.grant_mode | default('append') }}"
     state: present
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_pdb_grant_user
     label: "{{ _pdb_item.key }}/{{ _bl_pdb_grant_user.key }}"
   when:
-    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | length > 0
     - _bl_pdb_grant_user.value.grants is defined
     - _bl_pdb_grant_user.value.grants.roles is defined
     - _bl_pdb_grant_user.value.state | default('present') == 'present'
@@ -41,12 +41,12 @@
     privs_type: system
     state: present
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_pdb_syspriv_user
     label: "{{ _pdb_item.key }}/{{ _bl_pdb_syspriv_user.key }}"
   when:
-    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | length > 0
     - _bl_pdb_syspriv_user.value.grants is defined
     - _bl_pdb_syspriv_user.value.grants.system_privileges is defined
     - _bl_pdb_syspriv_user.value.state | default('present') == 'present'
@@ -63,12 +63,12 @@
     privs_type: object
     state: present
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.pdb.users | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_pdb_objpriv_user
     label: "{{ _pdb_item.key }}/{{ _bl_pdb_objpriv_user.key }}"
   when:
-    - oracle_baseline_accounts.pdb.users | default({}) | length > 0
+    - ((oracle_baseline_accounts | default({})).pdb | default({})).users | default({}) | length > 0
     - _bl_pdb_objpriv_user.value.grants is defined
     - _bl_pdb_objpriv_user.value.grants.object_privileges is defined
     - _bl_pdb_objpriv_user.value.state | default('present') == 'present'

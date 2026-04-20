@@ -17,11 +17,11 @@
     role: "{{ _bl_cdb_role.key }}"
     state: "{{ _bl_cdb_role.value.state | default('present') }}"
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.cdb.roles | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).roles | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_cdb_role
     label: "{{ _db.db_name }}/{{ _bl_cdb_role.key }}"
-  when: oracle_baseline_accounts.cdb.roles | default({}) | length > 0
+  when: ((oracle_baseline_accounts | default({})).cdb | default({})).roles | default({}) | length > 0
 
 # --- Per-PDB Roles (CDB path) ---
 - name: "Manage roles for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"

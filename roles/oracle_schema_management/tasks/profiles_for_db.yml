@@ -14,7 +14,7 @@
 # --- Baseline CDB Profiles ---
 - name: "Baseline CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"
   ansible.builtin.include_tasks: profiles_apply_one.yml
-  loop: "{{ oracle_baseline_accounts.cdb.profiles | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).profiles | default({}) | dict2items }}"
   loop_control:
     loop_var: _profile_entry
     label: "{{ _db.db_name }}/{{ _profile_entry.key }}"
@@ -22,7 +22,7 @@
     _profile_svc: "{{ _db.db_name }}"
   when:
     - _db.cdb | default(true)
-    - oracle_baseline_accounts.cdb.profiles | default({}) | length > 0
+    - ((oracle_baseline_accounts | default({})).cdb | default({})).profiles | default({}) | length > 0
 
 # --- Catalog CDB Profiles ---
 - name: "CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"

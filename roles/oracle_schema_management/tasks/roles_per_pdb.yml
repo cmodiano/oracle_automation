@@ -16,11 +16,11 @@
     role: "{{ _bl_pdb_role.key }}"
     state: "{{ _bl_pdb_role.value.state | default('present') }}"
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.pdb.roles | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).roles | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_pdb_role
     label: "{{ _pdb_item.key }}/{{ _bl_pdb_role.key }}"
-  when: oracle_baseline_accounts.pdb.roles | default({}) | length > 0
+  when: ((oracle_baseline_accounts | default({})).pdb | default({})).roles | default({}) | length > 0
 
 # --- Catalog PDB Roles ---
 - name: "PDB role {{ _pdb_role.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"

@@ -29,11 +29,11 @@
     locked: "{{ _bl_cdb_user.value.locked | default(omit) }}"
     state: "{{ _bl_cdb_user.value.state | default('present') }}"
   become_user: "{{ oracle_os_user }}"
-  loop: "{{ oracle_baseline_accounts.cdb.users | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | dict2items }}"
   loop_control:
     loop_var: _bl_cdb_user
     label: "{{ _db.db_name }}/{{ _bl_cdb_user.key }}"
-  when: oracle_baseline_accounts.cdb.users | default({}) | length > 0
+  when: ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | length > 0
 
 # --- Per-PDB Users (CDB path) ---
 - name: "Manage users for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"

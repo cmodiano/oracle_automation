@@ -13,14 +13,14 @@
 # --- Baseline PDB Profiles ---
 - name: "Baseline PDB profile {{ _profile_entry.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
   ansible.builtin.include_tasks: profiles_apply_one.yml
-  loop: "{{ oracle_baseline_accounts.pdb.profiles | default({}) | dict2items }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).pdb | default({})).profiles | default({}) | dict2items }}"
   loop_control:
     loop_var: _profile_entry
     label: "{{ _pdb_item.key }}/{{ _profile_entry.key }}"
   vars:
     _profile_svc: "{{ _db.db_name }}"
     _profile_ctr: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
-  when: oracle_baseline_accounts.pdb.profiles | default({}) | length > 0
+  when: ((oracle_baseline_accounts | default({})).pdb | default({})).profiles | default({}) | length > 0
 
 # --- Catalog PDB Profiles ---
 - name: "PDB profile {{ _profile_entry.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
