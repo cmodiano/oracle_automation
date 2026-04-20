@@ -27,6 +27,17 @@ oracle_os_groups:
   - { group: asmoper, gid: 805 }
 
 # Oracle Home definitions - catalog files reference these by name.
+# This dict is a global registry of all homes across the estate.
+# Not every home is installed on every host: the FPP patching role
+# discovers at runtime which homes are present (stat on path) and
+# which need to be provisioned by FPP (path absent → prepare phase).
+#
+# Fields:
+#   family   - version family group (19c, 21c, 26ai)
+#   version  - full dotted version string
+#   path     - expected filesystem path after FPP provisioning
+#   edition  - EE | SE2
+#
 # Adding a new patched home = add an entry here, no catalog files change.
 # NOTE: This section may be updated automatically by catalog_updater
 # after FPP patching. New entries are appended below existing ones.

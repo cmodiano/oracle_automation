@@ -1,0 +1,97 @@
+---
+# Manage grants for one database (_db).
+# Called by main.yml per database with tag: grants
+# Covers: role grants, system privileges, object privileges.
+#
+# Order:
+#   1. Baseline CDB grants  (oracle_baseline_accounts.cdb.users → CDB root)
+#   2. Per-PDB grants       (grants_per_pdb.yml per PDB or non-CDB root)
+#
+# Note: No catalog CDB grants — grants are declared at PDB level in the catalog.
+
+# --- Baseline CDB Role Grants ---
+- name: "Baseline CDB role grants for {{ _bl_cdb_grant_user.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_grant:
+    mode: sysdba
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_cdb_grant_user.key }}"
+    grants: "{{ _bl_cdb_grant_user.value.grants.roles | default([]) }}"
+    grant_mode: "{{ _bl_cdb_grant_user.value.grants.grant_mode | default('append') }}"
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_cdb_grant_user
+    label: "{{ _db.db_name }}/{{ _bl_cdb_grant_user.key }}"
+  when:
+    - _db.cdb | default(true)
+    - ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | length > 0
+    - _bl_cdb_grant_user.value.grants is defined
+    - _bl_cdb_grant_user.value.grants.roles is defined
+    - _bl_cdb_grant_user.value.state | default('present') == 'present'
+
+# --- Baseline CDB System Privileges ---
+- name: "Baseline CDB system privs for {{ _bl_cdb_syspriv_user.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_privs:
+    mode: sysdba
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_cdb_syspriv_user.key }}"
+    privs: "{{ _bl_cdb_syspriv_user.value.grants.system_privileges }}"
+    privs_type: system
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_cdb_syspriv_user
+    label: "{{ _db.db_name }}/{{ _bl_cdb_syspriv_user.key }}"
+  when:
+    - _db.cdb | default(true)
+    - ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | length > 0
+    - _bl_cdb_syspriv_user.value.grants is defined
+    - _bl_cdb_syspriv_user.value.grants.system_privileges is defined
+    - _bl_cdb_syspriv_user.value.state | default('present') == 'present'
+
+# --- Baseline CDB Object Privileges ---
+- name: "Baseline CDB object privs for {{ _bl_cdb_objpriv_user.key }} on {{ _db.db_name }}"
+  ibre5041.ansible_oracle_modules.oracle_privs:
+    mode: sysdba
+    service_name: "{{ _db.db_name }}"
+    oracle_home: "{{ _db._oracle_home_path }}"
+    schema: "{{ _bl_cdb_objpriv_user.key }}"
+    privs: "{{ _bl_cdb_objpriv_user.value.grants.object_privileges }}"
+    privs_type: object
+    state: present
+  become_user: "{{ oracle_os_user }}"
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _bl_cdb_objpriv_user
+    label: "{{ _db.db_name }}/{{ _bl_cdb_objpriv_user.key }}"
+  when:
+    - _db.cdb | default(true)
+    - ((oracle_baseline_accounts | default({})).cdb | default({})).users | default({}) | length > 0
+    - _bl_cdb_objpriv_user.value.grants is defined
+    - _bl_cdb_objpriv_user.value.grants.object_privileges is defined
+    - _bl_cdb_objpriv_user.value.state | default('present') == 'present'
+
+# --- Per-PDB Grants (CDB path) ---
+- name: "Manage grants for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: grants_per_pdb.yml
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  when:
+    - _db.cdb | default(true)
+    - _db.pdbs is defined
+    - _pdb_item.value.state | default('open') != 'absent'
+
+# --- Per-PDB Grants (non-CDB path) ---
+- name: "Manage grants for non-CDB database {{ _db.db_name }}"
+  ansible.builtin.include_tasks: grants_per_pdb.yml
+  vars:
+    _pdb_item:
+      key: "{{ _db.db_name }}"
+      value: {}
+  when: not (_db.cdb | default(true))

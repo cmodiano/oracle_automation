@@ -1,0 +1,57 @@
+---
+# Manage profiles for one database (_db).
+# Called by main.yml per database with tag: profiles
+#
+# Order:
+#   1. Baseline CDB profiles  (oracle_baseline_accounts.cdb.profiles → CDB root only)
+#   2. Catalog CDB profiles   (_db.profiles → CDB root)
+#   3. Per-PDB profiles       (profiles_per_pdb.yml per PDB or non-CDB root)
+#
+# Profile attributes are applied via profiles_apply_one.yml (one include per profile)
+# because the oracle_profile module takes one attribute per call and the data
+# structure is a dict-of-dicts which cannot be flattened with subelements directly.
+
+# --- Baseline CDB Profiles ---
+- name: "Baseline CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ ((oracle_baseline_accounts | default({})).cdb | default({})).profiles | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _profile_entry
+    label: "{{ _db.db_name }}/{{ _profile_entry.key }}"
+  vars:
+    _profile_svc: "{{ _db.db_name }}"
+  when:
+    - _db.cdb | default(true)
+    - ((oracle_baseline_accounts | default({})).cdb | default({})).profiles | default({}) | length > 0
+
+# --- Catalog CDB Profiles ---
+- name: "CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ _db.profiles | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _profile_entry
+    label: "{{ _db.db_name }}/{{ _profile_entry.key }}"
+  vars:
+    _profile_svc: "{{ _db.db_name }}"
+  when: _db.profiles | default({}) | length > 0
+
+# --- Per-PDB Profiles (CDB path) ---
+- name: "Manage profiles for PDB {{ _pdb_item.key }} in {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_per_pdb.yml
+  loop: "{{ _db.pdbs | default({}) | dict2items }}"
+  loop_control:
+    loop_var: _pdb_item
+    label: "{{ _db.db_name }}/{{ _pdb_item.key }}"
+  when:
+    - _db.cdb | default(true)
+    - _db.pdbs is defined
+    - _pdb_item.value.state | default('open') != 'absent'
+
+# --- Per-PDB Profiles (non-CDB path) ---
+- name: "Manage profiles for non-CDB database {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_per_pdb.yml
+  vars:
+    _pdb_item:
+      key: "{{ _db.db_name }}"
+      value: {}
+  when: not (_db.cdb | default(true))

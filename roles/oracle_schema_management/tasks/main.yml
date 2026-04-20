@@ -1,21 +1,29 @@
 ---
-# oracle_schema_management - Manage profiles, roles, users, and grants per PDB.
+# oracle_schema_management - Manage profiles, roles, users, and grants.
 #
-# Executed in strict dependency order:
-#   1. Profiles (must exist before users reference them)
-#   2. Roles (must exist before users are granted them)
-#   3. Users (reference profiles and tablespaces)
-#   4. Grants (reference users and roles)
+# Resources are applied in strict dependency order (Oracle constraint):
+#   1. profiles  — must exist before users reference them
+#   2. roles     — must exist before users are granted them
+#   3. users     — reference profiles and tablespaces
+#   4. grants    — reference users and roles
 #
-# Requires: oracle_databases fact from catalog_loader
-# Uses: ibre5041.ansible_oracle_modules.oracle_profile
-#       ibre5041.ansible_oracle_modules.oracle_role
-#       ibre5041.ansible_oracle_modules.oracle_user
-#       ibre5041.ansible_oracle_modules.oracle_grant
-#       ibre5041.ansible_oracle_modules.oracle_privs
+# Each step merges baseline accounts (all DBs) with catalog accounts (per-DB/PDB).
+# Baseline: oracle_baseline_accounts (group_vars/all/baseline_accounts.yml)
+# Catalog : oracle_databases[*].pdbs[*].{profiles,roles,users} (host catalog)
+#
+# Tags for selective execution:
+#   --tags profiles   apply profiles only
+#   --tags roles      apply roles only
+#   --tags users      apply users only
+#   --tags grants     apply grants only
+#   --tags schemas    apply all of the above (default for converge)
+#
+# Requires: oracle_databases fact from catalog_loader role
+# Modules : ibre5041.ansible_oracle_modules.{oracle_profile,oracle_role,oracle_user,
+#                                             oracle_grant,oracle_privs}
 
-- name: Manage schemas for each database
-  ansible.builtin.include_tasks: manage_schemas_for_db.yml
+- name: Manage profiles for each database
+  ansible.builtin.include_tasks: profiles_for_db.yml
   loop: "{{ oracle_databases }}"
   loop_control:
     loop_var: _db
@@ -23,4 +31,37 @@
   when:
     - _db._is_first_node
     - _db._db_role != 'physical_standby'
-  tags: [schemas]
+  tags: [schemas, profiles]
+
+- name: Manage roles for each database
+  ansible.builtin.include_tasks: roles_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db._db_role != 'physical_standby'
+  tags: [schemas, roles]
+
+- name: Manage users for each database
+  ansible.builtin.include_tasks: users_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db._db_role != 'physical_standby'
+  tags: [schemas, users]
+
+- name: Manage grants for each database
+  ansible.builtin.include_tasks: grants_for_db.yml
+  loop: "{{ oracle_databases }}"
+  loop_control:
+    loop_var: _db
+    label: "{{ _db.db_name }}"
+  when:
+    - _db._is_first_node
+    - _db._db_role != 'physical_standby'
+  tags: [schemas, grants]

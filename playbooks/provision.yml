@@ -1,0 +1,64 @@
+---
+# Full host provisioning: binaries → CDB → PDB → parameters → tablespaces → schemas.
+#
+# Use this for initial provisioning of a new database host.
+# For Day-2 convergence on an existing host, use converge.yml directly.
+#
+# First-time provisioning (binaries already installed on this run):
+#   ansible-playbook playbooks/provision.yml
+#
+# Skip binary installation if already done:
+#   ansible-playbook playbooks/provision.yml --skip-tags install
+#
+# Selective execution — Day-2 operations on an already-provisioned host.
+# Use converge.yml for Day-2; if you use provision.yml, include all
+# prerequisites so Oracle objects exist before they are referenced:
+#   ansible-playbook playbooks/provision.yml --skip-tags install --tags database,pdbs,tablespaces,schemas
+#
+# --tags schemas alone is only safe after CDB, PDBs and tablespaces exist:
+#   ansible-playbook playbooks/converge.yml --tags schemas   # preferred for Day-2
+
+- name: Install Oracle Infrastructure
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  tags: [install]
+
+  roles:
+    - role: ibre5041.ansible_oracle_modules.oracle_db_home
+    - role: ibre5041.ansible_oracle_modules.oracle_post_install
+
+- name: Oracle Database Converge
+  hosts: all
+  collections:
+    - ibre5041.ansible_oracle_modules
+  become: true
+  any_errors_fatal: true
+
+  roles:
+    - role: catalog_loader
+      tags: [always]
+
+    - role: oracle_database
+      tags: [database]
+
+    - role: oracle_pdb_management
+      tags: [database, pdbs]
+
+    - role: oracle_parameter_management
+      tags: [parameters]
+
+    - role: oracle_tablespace_management
+      tags: [tablespaces]
+
+    - role: oracle_schema_management
+      tags: [schemas]
+
+    - role: oracle_directory_management
+      tags: [directories]
+
+    - role: oracle_service_management
+      tags: [services]
+
+    - role: oracle_scheduler_management
+      tags: [scheduler]

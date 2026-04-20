@@ -64,6 +64,35 @@
   ansible.builtin.set_fact:
     _fpp_target_homes: "{{ _fpp_patch_plan | map(attribute='desired_home') | unique | list }}"
 
+# --- Check which target homes are already installed on this host ---
+# A home path present on disk means the working copy was already provisioned
+# (prepare phase ran previously, or the home was installed by other means).
+# A missing path means FPP prepare must run before patching.
+
+- name: Check target home paths on this host
+  ansible.builtin.stat:
+    path: "{{ oracle_homes[_target_home].path }}"
+    get_attributes: false
+    get_checksum: false
+    get_mime: false
+  loop: "{{ _fpp_target_homes }}"
+  loop_control:
+    loop_var: _target_home
+  register: _fpp_home_stat_results
+
+- name: Classify target homes by installation status
+  ansible.builtin.set_fact:
+    _fpp_homes_ready: >-
+      {{ _fpp_home_stat_results.results
+         | selectattr('stat.exists', 'equalto', true)
+         | map(attribute='_target_home')
+         | list }}
+    _fpp_homes_to_prepare: >-
+      {{ _fpp_home_stat_results.results
+         | selectattr('stat.exists', 'equalto', false)
+         | map(attribute='_target_home')
+         | list }}
+
 # --- Display plan ---
 
 - name: Display patching plan
@@ -72,6 +101,7 @@
       Patching plan for {{ inventory_hostname }}:
       {% for home in _fpp_target_homes %}
         Target home: {{ home }} ({{ oracle_homes[home].version }})
+          Status:     {{ 'installed — patch direct' if home in _fpp_homes_ready else 'NOT installed — FPP prepare required' }}
           Gold image: {{ (_fpp_patch_plan | selectattr('desired_home', 'equalto', home) | first).gold_image }}
           Databases:
           {% for entry in _fpp_patch_plan | selectattr('desired_home', 'equalto', home) %}

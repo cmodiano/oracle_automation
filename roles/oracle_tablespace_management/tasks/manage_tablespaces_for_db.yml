@@ -4,7 +4,6 @@
 - name: "Manage tablespaces for PDB {{ _pdb.key }} in {{ _db.db_name }}"
   ibre5041.ansible_oracle_modules.oracle_tablespace:
     mode: sysdba
-    hostname: localhost
     service_name: "{{ _pdb.key }}"
     oracle_home: "{{ _db._oracle_home_path }}"
     tablespace: "{{ _ts.key }}"

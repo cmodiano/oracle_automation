@@ -149,24 +149,33 @@ oracle_os_groups:
   - { group: asmdba, gid: 804 }
   - { group: asmoper, gid: 805 }
 
-# Oracle Home definitions - catalog files reference these by name
-# Adding a new patched home = add an entry here, no catalog files change
+# Oracle Home definitions — global registry for the entire estate.
+# Catalog files reference these by name (oracle_home: db_19_23).
+# NOT every home is installed on every host. The FPP patching role
+# discovers at runtime which homes are present (stat on path) and
+# classifies them into _fpp_homes_ready / _fpp_homes_to_prepare.
+# Adding a new patched home = add an entry here, no catalog files change.
 oracle_homes:
   db_19_21:
+    family: 19c
     version: "19.21.0.0"
     path: "{{ oracle_install_dir_prod }}/19.21.0.0"
     edition: EE
-    media: db_home_19_21.zip
   db_19_23:
+    family: 19c
     version: "19.23.0.0"
     path: "{{ oracle_install_dir_prod }}/19.23.0.0"
     edition: EE
-    media: db_home_19_23.zip
   db_21_3:
+    family: 21c
     version: "21.3.0.0"
     path: "{{ oracle_install_dir_prod }}/21.3.0.0"
     edition: EE
-    media: LINUX.X64_213000_db_home.zip
+  db_26ai_1:
+    family: 26ai
+    version: "26.1.0.0"
+    path: "{{ oracle_install_dir_prod }}/26.1.0.0"
+    edition: EE
 
 # Default database options (minimalist baseline)
 oracle_db_options_default:
@@ -948,7 +957,69 @@ Guard: `when: db._is_first_node and db._db_role != 'physical_standby'`
 
 **Playbook-level**: `serial: 1` ensures rolling execution across RAC nodes.
 
-### 3.12 Role: `oracle_dataguard`
+### 3.12 Role: `oracle_fpp_patching`
+
+**Purpose**: Converge each database to its declared `oracle_home` using FPP (Fleet Patching and Provisioning). Discovers which homes are installed on the target host at runtime; provisions missing ones via `rhpctl` before the maintenance window.
+
+**Two-phase model** (controlled by `fpp_mode: prepare | patch`):
+
+| Phase | When | What it does |
+|---|---|---|
+| `prepare` | Days before the window | Provisions missing working copies from gold images, runs pre-checks |
+| `patch` | During the window | Moves databases to working copies, runs datapatch, verifies |
+
+**Desired-state logic** (`build_plan.yml`):
+
+1. Query `oratab` for each database's current Oracle Home path
+2. Compare with `_oracle_home_path` from catalog → builds `_fpp_patch_plan` (actual ≠ desired)
+3. `stat` each desired home path → classifies target homes:
+   - `_fpp_homes_ready` — path exists, working copy already provisioned
+   - `_fpp_homes_to_prepare` — path absent, FPP prepare required
+4. Validate prerequisite environments (dev must be patched before staging, etc.)
+
+**Key constraint**: version is a **per-database** property, not per-environment. The progression constraint (dev → staging → prod) applies per database independently — prod APPDB1 can be at 19.29 while prod HRDB stays at 19.28.
+
+**Prepare phase** (`prepare.yml`):
+- Iterates over `_fpp_homes_to_prepare` only
+- Logs `_fpp_homes_ready` as already installed (skipped)
+- For each home to prepare: validates gold image → provisions working copy → verifies binaries
+- Outputs `_fpp_working_copies` dict for use by patch phase
+
+**Patch phase** (`patch.yml`):
+- Fails immediately if `_fpp_homes_to_prepare` is non-empty → clear error message to run prepare first
+- Moves each database via `rhpctl move database`
+- Runs datapatch if `fpp_run_datapatch: true`
+- Verifies databases are open on the new home
+
+**Role defaults** (`defaults/main.yml`):
+
+```yaml
+fpp_mode: ""                    # prepare | patch
+fpp_server_home: ""             # Where rhpctl lives
+fpp_gold_image_suffix: "_gold"  # db_19_23 → gold image db_19_23_gold
+fpp_working_copy_name: ""       # Single-target shorthand
+# fpp_working_copies:           # Per-home dict (multi-target)
+#   db_19_23: wc_19_23_node1
+fpp_run_datapatch: true
+fpp_env_progression: [dev, staging, prod]
+fpp_provision_timeout: 3600
+fpp_move_timeout: 7200
+```
+
+**Typical patching cycle** (example: 19c quarterly RU → 19.30):
+
+```bash
+# 1. Add db_19_30 to oracle_homes in oracle_defaults.yml
+# 2. Set oracle_home: db_19_30 in databases/overlays/dev/APPDB1.yml
+# 3. Prepare dev (before window)
+ansible-playbook playbooks/fpp_patch.yml -l oradev-node-1 -e fpp_mode=prepare -e oracle_environment=dev
+# 4. Patch dev (during window)
+ansible-playbook playbooks/fpp_patch.yml -l oradev-node-1 -e fpp_mode=patch -e oracle_environment=dev \
+  -e '{"fpp_working_copies": {"db_19_30": "wc_19_30_oradev-node-1"}}'
+# 5. Repeat for staging, then prod
+```
+
+### 3.13 Role: `oracle_dataguard`
 
 **Purpose**: Configure Data Guard, handle switchover and failover.
 
@@ -1517,6 +1588,8 @@ python tests/validate_catalog.py databases/ group_vars/all/oracle_defaults.yml
 | **Catalog directory (1 file/DB)** not one big dict | Scales for large estates, reduces git merge conflicts, teams can own their DB files |
 | **Dict-keyed collections** (users, services, etc.) not lists | `combine(recursive=True)` merges dicts recursively but replaces lists entirely |
 | **`oracle_homes` dict** in group_vars, catalog references by name | Patching adds a new home version without touching any catalog file |
+| **Runtime home discovery** via `stat` in FPP patching | Version is a per-database property — not all homes exist on all hosts. Stat is authoritative: no per-group or per-host declarations to maintain |
+| **`_fpp_homes_ready` / `_fpp_homes_to_prepare`** split | Prepare phase skips already-provisioned homes; patch phase fails fast if any home is missing — prevents patching before prepare runs |
 | **3-layer parameter merge**: baseline + env + catalog | Security/audit params enforced globally, sizing per environment, app-specific in catalog |
 | **Schema management in strict order**: profiles -> roles -> users -> grants | Eliminates dependency failures |
 | **RAC guard**: `when: db._is_first_node` | Schema/PDB/tablespace ops run once (shared data dictionary) |

@@ -1,0 +1,85 @@
+---
+# ============================================================
+# Baseline Oracle Accounts
+# ============================================================
+# Profiles, roles, and users applied idempotently to EVERY
+# database — at CDB root level and in every PDB — before
+# catalog-specific items.
+#
+# This mirrors oracle_baseline_parameters: items here are
+# enforced on all databases regardless of catalog content.
+#
+# Two sections:
+#   cdb: applied to the CDB root (service_name = db_name)
+#   pdb: applied to every PDB (service_name = pdb_name)
+#
+# Vault path for all baseline user passwords (shared):
+#   oracle-secrets/data/_baseline/{username}
+# One secret per username, reused across all databases.
+# ============================================================
+
+oracle_baseline_accounts:
+
+  # --- CDB root accounts ---
+  # Operational DBA accounts that need access to the CDB root
+  # (instance-level views, ASM, alert log, etc.)
+  cdb:
+    profiles:
+      OPS_DBA_PROFILE:
+        PASSWORD_LIFE_TIME: "90"        # 90-day rotation; wired to Vault-backed rotation
+        PASSWORD_REUSE_TIME: "365"      # cannot reuse within 1 year
+        PASSWORD_REUSE_MAX: "10"        # cannot reuse last 10 passwords
+        FAILED_LOGIN_ATTEMPTS: "5"
+        PASSWORD_LOCK_TIME: "0.0208"    # 30 minutes (0.0208 days)
+        SESSIONS_PER_USER: UNLIMITED
+        IDLE_TIME: UNLIMITED
+
+    roles:
+      OPS_DBA_RO:
+        state: present
+
+    users:
+      OPS_DBA:
+        state: present
+        profile: OPS_DBA_PROFILE
+        authentication_type: password
+        locked: false
+        expired: false
+        grants:
+          roles: [CONNECT, OPS_DBA_RO]
+          # System privileges intentionally omitted from baseline.
+          # Grant specific V$/DBA_ access via OPS_DBA_RO role in the catalog
+          # to keep blast radius bounded per environment.
+          grant_mode: exact
+
+  # --- PDB accounts ---
+  # Monitoring and operational accounts present in every PDB
+  pdb:
+    profiles:
+      OPS_MONITORING_PROFILE:
+        PASSWORD_LIFE_TIME: "90"        # 90-day rotation
+        PASSWORD_REUSE_TIME: "365"
+        PASSWORD_REUSE_MAX: "10"
+        FAILED_LOGIN_ATTEMPTS: "10"
+        PASSWORD_LOCK_TIME: "0.0208"    # 30 minutes
+        SESSIONS_PER_USER: "5"
+        IDLE_TIME: UNLIMITED
+
+    roles:
+      OPS_MONITOR_RO:
+        state: present
+
+    users:
+      OPS_MONITOR:
+        state: present
+        profile: OPS_MONITORING_PROFILE
+        authentication_type: password
+        locked: false
+        expired: false
+        grants:
+          roles: [CONNECT, OPS_MONITOR_RO]
+          system_privileges:
+            - CREATE SESSION
+          # Scope object access via OPS_MONITOR_RO role grants in the catalog;
+          # SELECT ANY DICTIONARY omitted — too broad for a monitoring account.
+          grant_mode: exact
