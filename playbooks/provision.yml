@@ -4,12 +4,19 @@
 # Use this for initial provisioning of a new database host.
 # For Day-2 convergence on an existing host, use converge.yml directly.
 #
-# Selective execution (tags apply to the converge play only):
-#   ansible-playbook playbooks/provision.yml --tags schemas
-#   ansible-playbook playbooks/provision.yml --tags database,pdbs
+# First-time provisioning (binaries already installed on this run):
+#   ansible-playbook playbooks/provision.yml
 #
 # Skip binary installation if already done:
 #   ansible-playbook playbooks/provision.yml --skip-tags install
+#
+# Selective execution — Day-2 operations on an already-provisioned host.
+# Use converge.yml for Day-2; if you use provision.yml, include all
+# prerequisites so Oracle objects exist before they are referenced:
+#   ansible-playbook playbooks/provision.yml --skip-tags install --tags database,pdbs,tablespaces,schemas
+#
+# --tags schemas alone is only safe after CDB, PDBs and tablespaces exist:
+#   ansible-playbook playbooks/converge.yml --tags schemas   # preferred for Day-2
 
 - name: Install Oracle Infrastructure
   hosts: all
