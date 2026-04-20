@@ -3,55 +3,36 @@
 # Called by main.yml per database with tag: profiles
 #
 # Order:
-#   1. Baseline CDB profiles  (oracle_baseline_accounts.cdb.profiles → CDB root)
+#   1. Baseline CDB profiles  (oracle_baseline_accounts.cdb.profiles → CDB root only)
 #   2. Catalog CDB profiles   (_db.profiles → CDB root)
 #   3. Per-PDB profiles       (profiles_per_pdb.yml per PDB or non-CDB root)
 #
-# Connection model:
-#   CDB root : service_name=_db.db_name  (no session_container)
-#   PDB      : service_name=_db.db_name  +  session_container=pdb_name  (in profiles_per_pdb.yml)
-#   non-CDB  : service_name=_db.db_name  (no session_container, synthetic _pdb_item)
+# Profile attributes are applied via profiles_apply_one.yml (one include per profile)
+# because the oracle_profile module takes one attribute per call and the data
+# structure is a dict-of-dicts which cannot be flattened with subelements directly.
 
 # --- Baseline CDB Profiles ---
-- name: "Baseline CDB profile {{ _bl_cdb_profile.key }} on {{ _db.db_name }}"
-  ibre5041.ansible_oracle_modules.oracle_profile:
-    mode: sysdba
-    service_name: "{{ _db.db_name }}"
-    oracle_home: "{{ _db._oracle_home_path }}"
-    name: "{{ _bl_cdb_profile.key }}"
-    attribute_name: "{{ _bl_cdb_attr.key }}"
-    attribute_value: "{{ _bl_cdb_attr.value }}"
-    state: present
-  become_user: "{{ oracle_os_user }}"
-  loop: >-
-    {{ oracle_baseline_accounts.cdb.profiles | default({}) | dict2items
-       | subelements('value' | dict2items, skip_missing=True) }}
+- name: "Baseline CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ oracle_baseline_accounts.cdb.profiles | default({}) | dict2items }}"
   loop_control:
-    label: "{{ _db.db_name }}: {{ _bl_cdb_profile.key }}.{{ _bl_cdb_attr.key }}"
+    loop_var: _profile_entry
+    label: "{{ _db.db_name }}/{{ _profile_entry.key }}"
   vars:
-    _bl_cdb_profile: "{{ item.0 }}"
-    _bl_cdb_attr: "{{ item.1 }}"
-  when: oracle_baseline_accounts.cdb.profiles | default({}) | length > 0
+    _profile_svc: "{{ _db.db_name }}"
+  when:
+    - _db.cdb | default(true)
+    - oracle_baseline_accounts.cdb.profiles | default({}) | length > 0
 
 # --- Catalog CDB Profiles ---
-- name: "CDB profile {{ _profile.key }} on {{ _db.db_name }}"
-  ibre5041.ansible_oracle_modules.oracle_profile:
-    mode: sysdba
-    service_name: "{{ _db.db_name }}"
-    oracle_home: "{{ _db._oracle_home_path }}"
-    name: "{{ _profile.key }}"
-    attribute_name: "{{ _attr.key }}"
-    attribute_value: "{{ _attr.value }}"
-    state: present
-  become_user: "{{ oracle_os_user }}"
-  loop: >-
-    {{ _db.profiles | default({}) | dict2items
-       | subelements('value' | dict2items, skip_missing=True) }}
+- name: "CDB profile {{ _profile_entry.key }} on {{ _db.db_name }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ _db.profiles | default({}) | dict2items }}"
   loop_control:
-    label: "{{ _db.db_name }}: {{ _profile.key }}.{{ _attr.key }}"
+    loop_var: _profile_entry
+    label: "{{ _db.db_name }}/{{ _profile_entry.key }}"
   vars:
-    _profile: "{{ item.0 }}"
-    _attr: "{{ item.1 }}"
+    _profile_svc: "{{ _db.db_name }}"
   when: _db.profiles | default({}) | length > 0
 
 # --- Per-PDB Profiles (CDB path) ---

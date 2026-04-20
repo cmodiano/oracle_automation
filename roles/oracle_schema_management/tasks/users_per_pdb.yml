@@ -9,6 +9,8 @@
 # Vault paths:
 #   baseline : vault_engine/data/_baseline/{username}
 #   catalog  : vault_engine/data/{db_name}/{pdb_name}/{username}
+#
+# The Vault lookup is skipped when state=absent or authentication_type != password.
 
 # --- Baseline PDB Users ---
 - name: "Baseline PDB user {{ _bl_pdb_user.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
@@ -21,7 +23,10 @@
     schema_password: >-
       {{ lookup('community.hashi_vault.hashi_vault',
          vault_engine ~ '/data/_baseline/' ~ _bl_pdb_user.key,
-         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password')
+         if (_bl_pdb_user.value.state | default('present') != 'absent' and
+             _bl_pdb_user.value.authentication_type | default('password') == 'password')
+         else omit }}
     profile: "{{ _bl_pdb_user.value.profile | default(omit) }}"
     authentication_type: "{{ _bl_pdb_user.value.authentication_type | default('password') }}"
     expired: "{{ _bl_pdb_user.value.expired | default(omit) }}"
@@ -45,7 +50,10 @@
     schema_password: >-
       {{ lookup('community.hashi_vault.hashi_vault',
          vault_engine ~ '/data/' ~ _db.db_name ~ '/' ~ _pdb_item.key ~ '/' ~ _pdb_user.key,
-         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password')
+         if (_pdb_user.value.state | default('present') != 'absent' and
+             _pdb_user.value.authentication_type | default('password') == 'password')
+         else omit }}
     default_tablespace: "{{ _pdb_user.value.default_tablespace | default(omit) }}"
     default_temp_tablespace: "{{ _pdb_user.value.default_temp_tablespace | default('TEMP') }}"
     profile: "{{ _pdb_user.value.profile | default(omit) }}"

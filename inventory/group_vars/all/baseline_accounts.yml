@@ -26,11 +26,11 @@ oracle_baseline_accounts:
   cdb:
     profiles:
       OPS_DBA_PROFILE:
-        PASSWORD_LIFE_TIME: UNLIMITED
-        PASSWORD_REUSE_TIME: UNLIMITED
-        PASSWORD_REUSE_MAX: UNLIMITED
+        PASSWORD_LIFE_TIME: "90"        # 90-day rotation; wired to Vault-backed rotation
+        PASSWORD_REUSE_TIME: "365"      # cannot reuse within 1 year
+        PASSWORD_REUSE_MAX: "10"        # cannot reuse last 10 passwords
         FAILED_LOGIN_ATTEMPTS: "5"
-        PASSWORD_LOCK_TIME: "0.0208"
+        PASSWORD_LOCK_TIME: "0.0208"    # 30 minutes (0.0208 days)
         SESSIONS_PER_USER: UNLIMITED
         IDLE_TIME: UNLIMITED
 
@@ -47,9 +47,9 @@ oracle_baseline_accounts:
         expired: false
         grants:
           roles: [CONNECT, OPS_DBA_RO]
-          system_privileges:
-            - SELECT ANY DICTIONARY
-            - SELECT ANY TABLE
+          # System privileges intentionally omitted from baseline.
+          # Grant specific V$/DBA_ access via OPS_DBA_RO role in the catalog
+          # to keep blast radius bounded per environment.
           grant_mode: exact
 
   # --- PDB accounts ---
@@ -57,8 +57,11 @@ oracle_baseline_accounts:
   pdb:
     profiles:
       OPS_MONITORING_PROFILE:
-        PASSWORD_LIFE_TIME: UNLIMITED
-        FAILED_LOGIN_ATTEMPTS: UNLIMITED
+        PASSWORD_LIFE_TIME: "90"        # 90-day rotation
+        PASSWORD_REUSE_TIME: "365"
+        PASSWORD_REUSE_MAX: "10"
+        FAILED_LOGIN_ATTEMPTS: "10"
+        PASSWORD_LOCK_TIME: "0.0208"    # 30 minutes
         SESSIONS_PER_USER: "5"
         IDLE_TIME: UNLIMITED
 
@@ -77,5 +80,6 @@ oracle_baseline_accounts:
           roles: [CONNECT, OPS_MONITOR_RO]
           system_privileges:
             - CREATE SESSION
-            - SELECT ANY DICTIONARY
+          # Scope object access via OPS_MONITOR_RO role grants in the catalog;
+          # SELECT ANY DICTIONARY omitted — too broad for a monitoring account.
           grant_mode: exact

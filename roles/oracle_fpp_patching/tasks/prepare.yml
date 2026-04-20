@@ -53,6 +53,6 @@
       To proceed with patching during the maintenance window, run:
         ansible-playbook playbooks/fpp_patch.yml -l {{ inventory_hostname }} \
           -e fpp_mode=patch \
-          -e '{{ _fpp_working_copies | default({}) | to_json }}'
+          -e '{"fpp_working_copies": {{ _fpp_working_copies | default({}) | to_json }}}'
       ============================================================
   when: _fpp_homes_to_prepare | length > 0

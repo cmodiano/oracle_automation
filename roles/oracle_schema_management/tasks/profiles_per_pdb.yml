@@ -5,47 +5,31 @@
 # Connection model:
 #   CDB    : service_name=_db.db_name  +  session_container=_pdb_item.key
 #   non-CDB: service_name=_db.db_name  (session_container omitted)
+#
+# Delegates to profiles_apply_one.yml per profile (one include per profile)
+# because oracle_profile takes one attribute per call and the data structure
+# is a dict-of-dicts which cannot be flattened with subelements directly.
 
 # --- Baseline PDB Profiles ---
-- name: "Baseline PDB profile {{ _bl_pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
-  ibre5041.ansible_oracle_modules.oracle_profile:
-    mode: sysdba
-    service_name: "{{ _db.db_name }}"
-    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
-    oracle_home: "{{ _db._oracle_home_path }}"
-    name: "{{ _bl_pdb_profile.key }}"
-    attribute_name: "{{ _bl_pdb_attr.key }}"
-    attribute_value: "{{ _bl_pdb_attr.value }}"
-    state: present
-  become_user: "{{ oracle_os_user }}"
-  loop: >-
-    {{ oracle_baseline_accounts.pdb.profiles | default({}) | dict2items
-       | subelements('value' | dict2items, skip_missing=True) }}
+- name: "Baseline PDB profile {{ _profile_entry.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ oracle_baseline_accounts.pdb.profiles | default({}) | dict2items }}"
   loop_control:
-    label: "{{ _pdb_item.key }}: {{ _bl_pdb_profile.key }}.{{ _bl_pdb_attr.key }}"
+    loop_var: _profile_entry
+    label: "{{ _pdb_item.key }}/{{ _profile_entry.key }}"
   vars:
-    _bl_pdb_profile: "{{ item.0 }}"
-    _bl_pdb_attr: "{{ item.1 }}"
+    _profile_svc: "{{ _db.db_name }}"
+    _profile_ctr: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
   when: oracle_baseline_accounts.pdb.profiles | default({}) | length > 0
 
 # --- Catalog PDB Profiles ---
-- name: "PDB profile {{ _pdb_profile.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
-  ibre5041.ansible_oracle_modules.oracle_profile:
-    mode: sysdba
-    service_name: "{{ _db.db_name }}"
-    session_container: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
-    oracle_home: "{{ _db._oracle_home_path }}"
-    name: "{{ _pdb_profile.key }}"
-    attribute_name: "{{ _pdb_attr.key }}"
-    attribute_value: "{{ _pdb_attr.value }}"
-    state: present
-  become_user: "{{ oracle_os_user }}"
-  loop: >-
-    {{ _pdb_item.value.profiles | default({}) | dict2items
-       | subelements('value' | dict2items, skip_missing=True) }}
+- name: "PDB profile {{ _profile_entry.key }} in {{ _db.db_name }}/{{ _pdb_item.key }}"
+  ansible.builtin.include_tasks: profiles_apply_one.yml
+  loop: "{{ _pdb_item.value.profiles | default({}) | dict2items }}"
   loop_control:
-    label: "{{ _pdb_item.key }}: {{ _pdb_profile.key }}.{{ _pdb_attr.key }}"
+    loop_var: _profile_entry
+    label: "{{ _pdb_item.key }}/{{ _profile_entry.key }}"
   vars:
-    _pdb_profile: "{{ item.0 }}"
-    _pdb_attr: "{{ item.1 }}"
+    _profile_svc: "{{ _db.db_name }}"
+    _profile_ctr: "{{ _pdb_item.key if (_db.cdb | default(true)) else omit }}"
   when: _pdb_item.value.profiles | default({}) | length > 0

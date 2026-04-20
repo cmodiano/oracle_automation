@@ -25,6 +25,7 @@
     loop_var: _bl_cdb_grant_user
     label: "{{ _db.db_name }}/{{ _bl_cdb_grant_user.key }}"
   when:
+    - _db.cdb | default(true)
     - oracle_baseline_accounts.cdb.users | default({}) | length > 0
     - _bl_cdb_grant_user.value.grants is defined
     - _bl_cdb_grant_user.value.grants.roles is defined
@@ -46,6 +47,7 @@
     loop_var: _bl_cdb_syspriv_user
     label: "{{ _db.db_name }}/{{ _bl_cdb_syspriv_user.key }}"
   when:
+    - _db.cdb | default(true)
     - oracle_baseline_accounts.cdb.users | default({}) | length > 0
     - _bl_cdb_syspriv_user.value.grants is defined
     - _bl_cdb_syspriv_user.value.grants.system_privileges is defined
@@ -67,6 +69,7 @@
     loop_var: _bl_cdb_objpriv_user
     label: "{{ _db.db_name }}/{{ _bl_cdb_objpriv_user.key }}"
   when:
+    - _db.cdb | default(true)
     - oracle_baseline_accounts.cdb.users | default({}) | length > 0
     - _bl_cdb_objpriv_user.value.grants is defined
     - _bl_cdb_objpriv_user.value.grants.object_privileges is defined

@@ -19,7 +19,10 @@
     schema_password: >-
       {{ lookup('community.hashi_vault.hashi_vault',
          vault_engine ~ '/data/_baseline/' ~ _bl_cdb_user.key,
-         url=vault_addr) | community.hashi_vault.vault_kv2_get('password') }}
+         url=vault_addr) | community.hashi_vault.vault_kv2_get('password')
+         if (_bl_cdb_user.value.state | default('present') != 'absent' and
+             _bl_cdb_user.value.authentication_type | default('password') == 'password')
+         else omit }}
     profile: "{{ _bl_cdb_user.value.profile | default(omit) }}"
     authentication_type: "{{ _bl_cdb_user.value.authentication_type | default('password') }}"
     expired: "{{ _bl_cdb_user.value.expired | default(omit) }}"
